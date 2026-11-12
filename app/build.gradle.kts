@@ -7,7 +7,7 @@ plugins {
 
 // Gemini API 키는 깃에 올라가지 않는 local.properties에서 읽는다.
 //   GEMINI_API_KEY=발급받은 키
-//   GEMINI_MODEL=gemini-3.8-flash   (생략 가능)
+//   GEMINI_MODEL=gemini-3.5-flash-lite   (생략 가능)
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
@@ -27,7 +27,7 @@ android {
         versionName = "1.0"
 
         buildConfigField("String", "GEMINI_API_KEY", "\"${localProperties.getProperty("GEMINI_API_KEY", "").trim()}\"")
-        buildConfigField("String", "GEMINI_MODEL", "\"${localProperties.getProperty("GEMINI_MODEL", "gemini-3.8-flash").trim()}\"")
+        buildConfigField("String", "GEMINI_MODEL", "\"${localProperties.getProperty("GEMINI_MODEL", "gemini-3.5-flash-lite").trim()}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

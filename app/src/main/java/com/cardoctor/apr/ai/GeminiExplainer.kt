@@ -6,6 +6,7 @@ import com.cardoctor.apr.diagnosis.Advice
 import com.cardoctor.apr.diagnosis.Environment
 import com.cardoctor.apr.diagnosis.LevelInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,6 +23,7 @@ object GeminiExplainer {
 
     private const val TAG = "CarDoctor"
     private const val BASE = "https://generativelanguage.googleapis.com/v1beta"
+    private const val RATE_LIMIT_WAIT_MS = 8_000L
 
     private const val SYSTEM_PROMPT =
         "당신은 차량 정비 어드바이저입니다. 운전 중인 일반 운전자에게 차량 고장을 설명합니다. " +
@@ -48,10 +50,19 @@ object GeminiExplainer {
                 val text = try {
                     callInteractions(prompt)
                 } catch (e: ApiException) {
-                    // 계정이나 모델에 따라 새 엔드포인트가 안 될 수 있어, 기존 방식으로 한 번 더 시도한다.
-                    if (e.code == 404 || e.code == 400) callGenerateContent(prompt) else throw e
+                    when (e.code) {
+                        // 무료 등급은 분당 호출 수가 적다. 잠깐 기다렸다가 한 번만 다시 시도한다.
+                        429 -> {
+                            delay(RATE_LIMIT_WAIT_MS)
+                            callInteractions(prompt)
+                        }
+                        // 계정이나 모델에 따라 새 엔드포인트가 안 될 수 있어, 기존 방식으로 한 번 더 시도한다.
+                        404, 400 -> callGenerateContent(prompt)
+                        else -> throw e
+                    }
                 }
-                text.trim().also {
+                // 모델이 넣는 강조 기호(**)는 화면에 그대로 보이므로 지운다.
+                text.replace("**", "").trim().also {
                     require(it.isNotEmpty()) { "빈 응답" }
                     cache[key] = it
                 }
@@ -120,8 +131,8 @@ object GeminiExplainer {
     private fun post(url: String, body: JSONObject, headers: Map<String, String>): JSONObject {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 10_000
-            readTimeout = 30_000
+            connectTimeout = 15_000
+            readTimeout = 45_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("x-goog-api-key", BuildConfig.GEMINI_API_KEY)

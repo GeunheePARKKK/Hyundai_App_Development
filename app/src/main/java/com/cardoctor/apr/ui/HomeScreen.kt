@@ -365,7 +365,7 @@ private fun AiExplanation(advice: Advice, env: Environment) {
 
     LaunchedEffect(advice.part, advice.level, env) {
         if (!GeminiExplainer.isConfigured) return@LaunchedEffect
-        delay(500) // 버튼을 연달아 누를 때 호출이 몰리지 않게 잠깐 기다린다.
+        delay(1200) // 버튼을 연달아 누를 때 호출이 몰리지 않게 기다린다. 무료 등급은 분당 호출 수가 적다.
         GeminiExplainer.explain(advice, env)
             .onSuccess { aiText = it }
             .onFailure { failed = true }
