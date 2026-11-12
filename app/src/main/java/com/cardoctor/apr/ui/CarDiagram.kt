@@ -1,6 +1,9 @@
 package com.cardoctor.apr.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -16,14 +19,47 @@ import com.cardoctor.apr.diagnosis.Advice
 import com.cardoctor.apr.diagnosis.Part
 
 /**
+ * 그림에서 누른 위치(비율 좌표)에 해당하는 부품. 해당하는 부품이 없으면 null.
+ * 보닛은 냉각수와 구동 장치가 같은 자리라, 둘 중 고장 난 쪽을 우선한다.
+ */
+private fun partAt(x: Float, y: Float, faulty: Set<Part>): Part? {
+    val inWheelRow = y in 0.12f..0.31f || y in 0.67f..0.87f
+    val side = minOf(x, 1f - x) // 가장 가까운 옆면까지의 거리
+    return when {
+        inWheelRow && side < 0.16f -> Part.TIRE
+        inWheelRow && side < 0.32f -> Part.BRAKE
+        y < 0.11f -> Part.HEADLAMP
+        y in 0.23f..0.41f -> Part.WIPER
+        y in 0.08f..0.25f -> if (Part.POWER in faulty && Part.COOLANT !in faulty) Part.POWER else Part.COOLANT
+        else -> null
+    }
+}
+
+/**
  * 위에서 내려다본 차량 그림. 차 앞쪽이 위.
  * 고장 난 부품은 등급 색으로 칠하고, 그 위치에 같은 색 원을 겹쳐 표시한다.
  * 좌표는 모두 그림 크기에 대한 비율(0~1)이다.
  */
 @Composable
-internal fun CarDiagram(advices: List<Advice>, modifier: Modifier = Modifier) {
-    val colors = advices.associate { it.part to levelColor(it.level) }
-    Canvas(modifier = modifier) {
+internal fun CarDiagram(
+    advices: List<Advice>,
+    modifier: Modifier = Modifier,
+    /** 4등급 표시를 깜빡이게 하는 값. 1이면 원래 색, 0에 가까울수록 옅어진다. */
+    pulse: Float = 1f,
+    onPartTap: (Part) -> Unit = {}
+) {
+    val colors = advices.associate {
+        val color = levelColor(it.level)
+        it.part to if (it.level >= 4) lerp(Color.White, color, pulse) else color
+    }
+    val faultyParts = advices.map { it.part }.toSet()
+    Canvas(
+        modifier = modifier.pointerInput(faultyParts) {
+            detectTapGestures { tap ->
+                partAt(tap.x / size.width, tap.y / size.height, faultyParts)?.let(onPartTap)
+            }
+        }
+    ) {
         val w = size.width
         val h = size.height
         fun at(x: Float, y: Float) = Offset(x * w, y * h)
