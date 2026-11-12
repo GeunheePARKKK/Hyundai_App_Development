@@ -102,7 +102,7 @@ private class Face(
 
 private val BodyColor = Color(0xFFE4E7EB)
 private val TrimColor = Color(0xFFB4BAC3)
-private val GlassColor = Color(0xFF29313B)
+private val GlassColor = Color(0xFF0B1016)
 private val TireColor = Color(0xFF1F2328)
 private val RimColor = Color(0xFFC3C8D0)
 private val LampColor = Color(0xFFFBFCFD)
@@ -499,7 +499,7 @@ internal fun Car3DView(
                 val angle = 2.0 * PI * i / 24
                 toScreen(toCamera(Vec(2.45f * cos(angle).toFloat(), 0f, 1.08f * sin(angle).toFloat())))
             }
-            drawPath(polygonPath(shadow), Color(0x2E000000))
+            drawPath(polygonPath(shadow), Color(0xA6000000))
 
             class Item(val face: Face, val layer: Int, val objectDepth: Float, val depth: Float)
 
@@ -596,7 +596,7 @@ private fun ViewButton(label: String, onClick: () -> Unit) {
         modifier = Modifier
             .size(46.dp)
             .clip(CircleShape)
-            .background(Color.White)
+            .background(Color(0xFF12161B))
             .border(1.dp, Lux.StrokeStrong, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center

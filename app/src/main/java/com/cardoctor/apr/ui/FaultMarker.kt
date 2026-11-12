@@ -93,11 +93,11 @@ internal fun DrawScope.drawFaultLabel(
 ) {
     val text = measurer.measure(
         label.text,
-        TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF14171B))
+        TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
     )
     val number = measurer.measure(
         label.level.toString(),
-        TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = onLevelColor(label.level))
     )
     val badge = 12.dp.toPx()
     val height = 36.dp.toPx()
@@ -133,9 +133,8 @@ internal fun DrawScope.drawFaultLabel(
     }
 
     val corner = CornerRadius(height / 2, height / 2)
-    drawRoundRect(Color(0x26000000), Offset(left, top + 2.dp.toPx()), Size(width, height), corner)
-    drawRoundRect(Color.White, Offset(left, top), Size(width, height), corner)
-    drawRoundRect(color.copy(alpha = 0.7f), Offset(left, top), Size(width, height), corner, style = Stroke(1.2.dp.toPx()))
+    drawRoundRect(Color(0xF012161B), Offset(left, top), Size(width, height), corner)
+    drawRoundRect(color, Offset(left, top), Size(width, height), corner, style = Stroke(1.5.dp.toPx()))
 
     val badgeCenter = Offset(left + 8.dp.toPx() + badge, top + height / 2)
     drawCircle(color, badge, badgeCenter)

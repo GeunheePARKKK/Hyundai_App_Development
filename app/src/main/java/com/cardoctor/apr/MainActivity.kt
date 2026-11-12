@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             CarDoctorTheme {
-                Scaffold(modifier = Modifier.fillMaxSize(), containerColor = Color(0xFFF4F5F7)) { innerPadding ->
+                Scaffold(modifier = Modifier.fillMaxSize(), containerColor = Color(0xFF050608)) { innerPadding ->
                     CarDoctorApp(
                         vehicle = vehicleReader.state,
                         live = live,
