@@ -1,6 +1,5 @@
 package com.cardoctor.apr.ui
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,12 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,11 +48,8 @@ private val TextMain = Color(0xFF1B1F24)
 private val TextSub = Color(0xFF5B6470)
 private val Outline = Color(0xFFD5DAE1)
 private val Normal = Color(0xFF2E9E5B)
-private val CarBody = Color(0xFFC9CED6)
-private val CarGlass = Color(0xFF8A94A3)
-private val CarPart = Color(0xFF6F7885)
 
-private fun levelColor(level: Int): Color = when (level) {
+internal fun levelColor(level: Int): Color = when (level) {
     4 -> Color(0xFFD32F2F)
     3 -> Color(0xFFEF6C00)
     2 -> Color(0xFFC79100)
@@ -165,7 +156,7 @@ private fun StatusPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             CarDiagram(
                 advices = advices,
-                modifier = Modifier.size(width = 230.dp, height = 400.dp)
+                modifier = Modifier.size(width = 250.dp, height = 540.dp)
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -395,57 +386,4 @@ private fun Toggle(label: String, on: Boolean, onClick: () -> Unit) {
     } else {
         OutlinedButton(onClick = onClick) { Text(label, fontSize = 20.sp, color = TextMain) }
     }
-}
-
-/** 위에서 내려다본 차량 그림. 고장 난 부품을 등급 색으로 칠한다. 차 앞쪽이 위. */
-@Composable
-private fun CarDiagram(advices: List<Advice>, modifier: Modifier = Modifier) {
-    val colors = advices.associate { it.part to levelColor(it.level) }
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        fun color(part: Part, normal: Color) = colors[part] ?: normal
-
-        // 타이어 4개
-        val tireW = w * 0.13f
-        val tireH = h * 0.16f
-        val tireColor = color(Part.TIRE, CarPart)
-        listOf(0.17f, 0.67f).forEach { y ->
-            rounded(tireColor, 0f, h * y, tireW, tireH, 10f)
-            rounded(tireColor, w - tireW, h * y, tireW, tireH, 10f)
-        }
-
-        // 차체
-        rounded(CarBody, w * 0.10f, 0f, w * 0.80f, h, 60f)
-
-        // 전조등
-        val lampColor = color(Part.HEADLAMP, Color.White)
-        rounded(lampColor, w * 0.16f, h * 0.025f, w * 0.20f, h * 0.045f, 12f)
-        rounded(lampColor, w * 0.64f, h * 0.025f, w * 0.20f, h * 0.045f, 12f)
-
-        // 냉각수·구동 장치(보닛 안)
-        drawCircle(colors[Part.POWER] ?: color(Part.COOLANT, CarPart), radius = w * 0.09f, center = Offset(w * 0.5f, h * 0.16f))
-
-        // 앞 유리, 지붕, 뒤 유리
-        rounded(CarGlass, w * 0.18f, h * 0.27f, w * 0.64f, h * 0.14f, 20f)
-        rounded(Color(0xFFB4BAC4), w * 0.18f, h * 0.43f, w * 0.64f, h * 0.27f, 16f)
-        rounded(CarGlass, w * 0.20f, h * 0.72f, w * 0.60f, h * 0.10f, 20f)
-
-        // 와이퍼
-        val wiperColor = color(Part.WIPER, Color.White)
-        val wiperY = h * 0.395f
-        drawLine(wiperColor, Offset(w * 0.24f, wiperY), Offset(w * 0.47f, wiperY - h * 0.05f), 8f, StrokeCap.Round)
-        drawLine(wiperColor, Offset(w * 0.53f, wiperY), Offset(w * 0.76f, wiperY - h * 0.05f), 8f, StrokeCap.Round)
-
-        // 브레이크(바퀴 안쪽)
-        val brakeColor = color(Part.BRAKE, CarPart)
-        listOf(0.25f, 0.75f).forEach { y ->
-            drawCircle(brakeColor, radius = w * 0.045f, center = Offset(w * 0.19f, h * y))
-            drawCircle(brakeColor, radius = w * 0.045f, center = Offset(w * 0.81f, h * y))
-        }
-    }
-}
-
-private fun DrawScope.rounded(color: Color, x: Float, y: Float, width: Float, height: Float, radius: Float) {
-    drawRoundRect(color, topLeft = Offset(x, y), size = Size(width, height), cornerRadius = CornerRadius(radius, radius))
 }
