@@ -6,7 +6,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
@@ -38,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,6 +57,10 @@ private enum class Screen(val label: String) {
     SELF_CHECK("자가진단")
 }
 
+/*
+ * 화면 구성: 왼쪽에 차량 그림, 가운데에 좁은 메뉴, 오른쪽에 상세.
+ * 시연용 패널은 메뉴의 스위치로 켰을 때만 아래에 나타난다.
+ */
 @Composable
 fun CarDoctorApp(
     vehicle: VehicleState,
@@ -76,6 +77,7 @@ fun CarDoctorApp(
     // 실시간 시각·날씨를 판정에 반영할지. 시나리오 버튼은 정해진 상황을 보여 줘야 하므로 이 값을 끈다.
     var useLive by remember { mutableStateOf(true) }
     var voiceOn by remember { mutableStateOf(true) }
+    var demoOpen by remember { mutableStateOf(false) }
 
     // 차량 값, 실시간 시각·날씨, 시연 패널 값을 합쳐서 판정한다.
     val vehicleEnv = vehicle.environment
@@ -101,73 +103,66 @@ fun CarDoctorApp(
     }
 
     CompositionLocalProvider(LocalContentColor provides Lux.Text) {
-        Row(
+        Column(
             modifier = modifier
                 .fillMaxSize()
-                .background(Lux.Background)
+                .background(Lux.Surface)
         ) {
-            SideNav(
-                screen = screen,
-                onScreen = { screen = it },
-                voiceStatus = voiceStatus,
-                voiceOn = voiceOn,
-                onToggleVoice = { voiceOn = !voiceOn }
-            )
-            Box(
-                Modifier
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .background(Lux.Stroke)
-            )
-
-            Column(
+            Row(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = 22.dp, vertical = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .fillMaxWidth()
             ) {
-                Row(
+                CarPanel(
+                    advices = advices,
+                    env = allEnv,
+                    onSelect = {
+                        selected = it
+                        screen = Screen.HOME
+                    },
+                    modifier = Modifier
+                        .weight(1.05f)
+                        .fillMaxHeight()
+                )
+                VerticalLine()
+                Menu(
+                    screen = screen,
+                    onScreen = { screen = it },
+                    voiceOn = voiceOn,
+                    voiceStatus = voiceStatus,
+                    onToggleVoice = { voiceOn = !voiceOn },
+                    demoOpen = demoOpen,
+                    onToggleDemo = { demoOpen = !demoOpen }
+                )
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        .fillMaxHeight()
+                        .background(Lux.SurfaceDim)
                 ) {
                     when (screen) {
-                        Screen.HOME -> {
-                            StatusPanel(
-                                advices = advices,
-                                env = allEnv,
-                                envSource = if (useLive) live.summary else "시연 패널에서 정한 상황",
-                                shownPart = shownPart,
-                                onSelect = { selected = it },
-                                modifier = Modifier
-                                    .weight(1.18f)
-                                    .fillMaxHeight()
-                            )
-                            AdvicePanel(
-                                part = shownPart,
-                                advice = shownAdvice,
-                                env = allEnv,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                            )
-                        }
+                        Screen.HOME -> DetailPanel(
+                            advices = advices,
+                            shownPart = shownPart,
+                            shownAdvice = shownAdvice,
+                            env = allEnv,
+                            envSource = if (useLive) live.summary else "시연 패널에서 정한 상황",
+                            onSelect = { selected = it }
+                        )
 
                         Screen.SELF_CHECK -> SelfCheckPanel(
                             advices = advices,
                             onOpenPart = { part ->
                                 selected = part
                                 screen = Screen.HOME
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
+                            }
                         )
                     }
                 }
+            }
 
+            if (demoOpen) {
+                Hairline()
                 DemoPanel(
                     vehicle = vehicle,
                     faults = faults,
@@ -191,246 +186,56 @@ fun CarDoctorApp(
     }
 }
 
-/** 왼쪽 세로 메뉴: 화면 전환과 음성 안내 스위치. 선택된 항목은 파란 막대와 파란 글자로 표시한다. */
 @Composable
-private fun SideNav(
-    screen: Screen,
-    onScreen: (Screen) -> Unit,
-    voiceStatus: String,
-    voiceOn: Boolean,
-    onToggleVoice: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .width(196.dp)
+private fun VerticalLine() {
+    Box(
+        Modifier
+            .width(1.dp)
             .fillMaxHeight()
-            .padding(vertical = 28.dp)
-    ) {
-        Text(
-            "CAR DOCTOR",
-            modifier = Modifier.padding(start = 26.dp),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 3.sp,
-            color = Lux.TextFaint
-        )
-        Spacer(Modifier.height(30.dp))
-
-        Screen.entries.forEach { item ->
-            val isCurrent = item == screen
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onScreen(item) }
-                    .padding(vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    Modifier
-                        .size(width = 4.dp, height = 30.dp)
-                        .background(if (isCurrent) Lux.Accent else Color.Transparent)
-                )
-                Spacer(Modifier.width(22.dp))
-                Text(
-                    item.label,
-                    fontSize = 26.sp,
-                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
-                    color = if (isCurrent) Lux.Accent else Lux.TextSoft
-                )
-            }
-        }
-
-        Spacer(Modifier.weight(1f))
-
-        Column(
-            modifier = Modifier.padding(start = 26.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text("음성 안내", fontSize = 22.sp, fontWeight = FontWeight.Medium, color = Lux.TextSoft)
-            LuxSwitch(on = voiceOn, onClick = onToggleVoice)
-            Text(voiceStatus, fontSize = 18.sp, color = Lux.TextFaint)
-        }
-    }
+            .background(Lux.Line)
+    )
 }
 
-/** 왼쪽 구역: 전체 상태, 현재 환경, 차량 그림, 감지된 고장 목록. */
+private fun environmentText(env: Environment): String = buildList {
+    add(if (env.night) "야간" else "주간")
+    add(if (env.rain) "비·눈" else "강수 없음")
+    add(if (env.highway) "고속도로" else "일반 도로")
+    if (env.longTrip) add("남은 거리 김")
+}.joinToString("  ·  ")
+
+/** 왼쪽: 현재 환경 한 줄, 전체 상태, 차량 그림. */
 @Composable
-private fun StatusPanel(
+private fun CarPanel(
     advices: List<Advice>,
     env: Environment,
-    envSource: String,
-    shownPart: Part?,
     onSelect: (Part) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val topLevel = advices.firstOrNull()?.level
-    var show3d by remember { mutableStateOf(true) }
 
-    // 4등급(즉시 정차)일 때만 상태 표시와 차량 그림의 표시를 깜빡인다.
+    // 4등급(즉시 정차)일 때만 상태 글자와 차량 그림의 표시를 깜빡인다.
     val pulse = if (topLevel != null && topLevel >= 4) blinkPulse() else 1f
 
-    Column(
-        modifier = modifier
-            .luxPanel()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        StatusHero(topLevel, pulse)
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EnvChip(if (env.night) "야간" else "주간", risky = env.night)
-            EnvChip(if (env.rain) "비·눈" else "강수 없음", risky = env.rain)
-            EnvChip(if (env.highway) "고속도로" else "일반 도로", risky = env.highway)
-            if (env.longTrip) EnvChip("남은 거리 김", risky = true)
-        }
-        Text(envSource, fontSize = 18.sp, color = Lux.TextFaint)
-
-        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            // 차량 무대: 가운데만 은은하게 밝은 검은 바닥. 아래에 파란 조명 선을 깐다.
-            Box(
-                modifier = Modifier
-                    .size(width = 410.dp, height = if (show3d) 440.dp else 590.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(Color(0xFF202832), Color(0xFF0C1014), Color(0xFF050608)),
-                            radius = 520f
-                        )
-                    )
-            ) {
-                if (show3d) {
-                    Car3DView(
-                        advices = advices,
-                        modifier = Modifier.fillMaxSize(),
-                        pulse = pulse,
-                        onPartTap = onSelect
-                    )
-                } else {
-                    CarDiagram(
-                        advices = advices,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(width = 240.dp, height = 520.dp),
-                        pulse = pulse,
-                        onPartTap = onSelect
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Chip("3D", on = show3d) { show3d = true }
-                    Chip("평면", on = !show3d) { show3d = false }
-                }
-                Text(
-                    if (show3d) "끌어서 회전 · 부위를 누르면 상세 정보" else "부위를 누르면 상세 정보",
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 14.dp),
-                    fontSize = 18.sp,
-                    color = Lux.TextFaint
-                )
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(
-                            Brush.horizontalGradient(listOf(Color.Transparent, Lux.Accent, Color.Transparent))
-                        )
-                )
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
-                SectionLabel("감지된 고장  ${advices.size}")
-                Spacer(Modifier.height(10.dp))
-                Hairline()
-                if (advices.isEmpty()) {
-                    Spacer(Modifier.height(14.dp))
-                    Text("모든 점검 항목이 정상입니다.", fontSize = 22.sp, color = Lux.TextDim)
-                }
-                advices.forEach { advice ->
-                    FaultRow(
-                        advice = advice,
-                        isSelected = advice.part == shownPart,
-                        onClick = { onSelect(advice.part) }
-                    )
-                    Hairline()
-                }
-            }
-        }
-    }
-}
-
-/** 전체 상태를 알리는 경고창. 모서리를 깎은 테두리에 등급 색을 쓴다. */
-@Composable
-private fun StatusHero(topLevel: Int?, pulse: Float) {
-    val color = topLevel?.let(::levelColor) ?: Lux.Ok
-    val strength = if (topLevel != null && topLevel >= 4) pulse else 1f
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(Lux.WarningShape)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(color.copy(alpha = 0.22f * strength), Color.Transparent)
-                )
+    Column(modifier = modifier.padding(start = 40.dp, top = 32.dp, end = 24.dp, bottom = 20.dp)) {
+        Caption(environmentText(env))
+        Spacer(Modifier.height(10.dp))
+        if (topLevel == null) {
+            Text("이상 없음", fontSize = 38.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
+        } else {
+            Text(
+                "${topLevel}등급 · ${LevelInfo.title(topLevel)}",
+                fontSize = 38.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = levelColor(topLevel).copy(alpha = if (topLevel >= 4) pulse.coerceAtLeast(0.35f) else 1f)
             )
-            .border(2.dp, color.copy(alpha = strength.coerceAtLeast(0.3f)), Lux.WarningShape)
-            .padding(horizontal = 32.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            SectionLabel("현재 상태", color = color)
-            Spacer(Modifier.height(4.dp))
-            if (topLevel == null) {
-                Text("이상 없음", fontSize = 40.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
-            } else {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("${topLevel}등급", fontSize = 44.sp, fontWeight = FontWeight.Bold, color = color)
-                    Spacer(Modifier.width(16.dp))
-                    Text(
-                        LevelInfo.title(topLevel),
-                        modifier = Modifier.padding(bottom = 5.dp),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Lux.Text
-                    )
-                }
-            }
         }
-    }
-}
-
-/** 현재 환경 칩. 위험도를 올리는 상황이면 파란 테두리로 표시한다. */
-@Composable
-private fun EnvChip(label: String, risky: Boolean) {
-    Row(
-        modifier = Modifier
-            .clip(Lux.Pill)
-            .background(if (risky) Lux.AccentDeep else Color.Transparent)
-            .border(1.5.dp, if (risky) Lux.Accent else Lux.StrokeStrong, Lux.Pill)
-            .padding(horizontal = 16.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(if (risky) Lux.Accent else Lux.TextFaint)
-        )
-        Spacer(Modifier.width(9.dp))
-        Text(
-            label,
-            fontSize = 19.sp,
-            fontWeight = if (risky) FontWeight.SemiBold else FontWeight.Medium,
-            color = if (risky) Color.White else Lux.TextDim
+        CarDiagram(
+            advices = advices,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            pulse = pulse,
+            onPartTap = onSelect
         )
     }
 }
@@ -448,123 +253,198 @@ private fun blinkPulse(): Float {
     return pulse
 }
 
-/** 고장 목록의 한 줄. 선택된 줄은 왼쪽 파란 막대와 파란 기운의 바탕으로 표시한다. */
+/** 가운데: 화면 전환과 스위치 두 개. */
 @Composable
-private fun FaultRow(advice: Advice, isSelected: Boolean, onClick: () -> Unit) {
+private fun Menu(
+    screen: Screen,
+    onScreen: (Screen) -> Unit,
+    voiceOn: Boolean,
+    voiceStatus: String,
+    onToggleVoice: () -> Unit,
+    demoOpen: Boolean,
+    onToggleDemo: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(230.dp)
+            .fillMaxHeight()
+            .padding(horizontal = 16.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Screen.entries.forEach { item ->
+            val isCurrent = item == screen
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(Lux.ButtonShape)
+                    .background(if (isCurrent) Lux.Fill else Color.Transparent)
+                    .clickable { onScreen(item) }
+                    .padding(horizontal = 18.dp, vertical = 16.dp)
+            ) {
+                Text(
+                    item.label,
+                    fontSize = 23.sp,
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (isCurrent) Lux.Text else Lux.TextDim
+                )
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        SwitchRow("음성 안내", voiceOn, onToggleVoice)
+        if (voiceStatus != "대기") {
+            Caption(voiceStatus, modifier = Modifier.padding(start = 18.dp))
+        }
+        SwitchRow("시연 패널", demoOpen, onToggleDemo)
+    }
+}
+
+@Composable
+private fun SwitchRow(label: String, on: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isSelected) Lux.Selected else Color.Transparent)
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 21.sp, fontWeight = FontWeight.Medium, color = Lux.TextDim, modifier = Modifier.weight(1f))
+        LuxSwitch(on = on, onClick = onClick)
+    }
+}
+
+/** 오른쪽: 차량 상태 상세. 고장이 없으면 요약만, 있으면 고장 목록과 고른 고장의 권고를 보여 준다. */
+@Composable
+private fun DetailPanel(
+    advices: List<Advice>,
+    shownPart: Part?,
+    shownAdvice: Advice?,
+    env: Environment,
+    envSource: String,
+    onSelect: (Part) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 44.dp, vertical = 36.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text("차량 상태", fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (advices.isEmpty()) "감지된 고장이 없습니다" else "감지된 고장 ${advices.size}건",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
+            color = Lux.Accent
+        )
+        Spacer(Modifier.height(30.dp))
+
+        if (advices.isEmpty()) {
+            if (shownPart != null) {
+                Field("선택한 부위") {
+                    Text("${shownPart.label} · 정상", fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = Lux.Ok)
+                }
+            }
+            Field("주행 환경") {
+                Text(environmentText(env), fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
+            }
+            Field("기준") {
+                Text(envSource, fontSize = 21.sp, color = Lux.TextDim)
+            }
+            return@Column
+        }
+
+        advices.forEach { advice ->
+            FaultRow(advice, isSelected = advice.part == shownPart) { onSelect(advice.part) }
+        }
+        Spacer(Modifier.height(22.dp))
+        Hairline()
+        Spacer(Modifier.height(26.dp))
+
+        if (shownAdvice == null) {
+            if (shownPart != null) {
+                Field("선택한 부위") {
+                    Text("${shownPart.label} · 정상", fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = Lux.Ok)
+                }
+            }
+            return@Column
+        }
+
+        Field("권고") {
+            Text(
+                LevelInfo.action(shownAdvice.level),
+                fontSize = 28.sp,
+                lineHeight = 40.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Lux.Text
+            )
+        }
+        AiExplanation(shownAdvice, env)
+        Field("판정 근거") {
+            val reasons = shownAdvice.reasons.joinToString("  ·  ") { "${it.label} +${it.points}" }
+            Text(
+                "$reasons  ·  합계 ${shownAdvice.score}점",
+                fontSize = 21.sp,
+                lineHeight = 33.sp,
+                color = Lux.TextDim
+            )
+            if (shownAdvice.part.baseSeverity == 3 && shownAdvice.score < 4) {
+                Text(
+                    "안전에 직결되는 부품이라 점수와 관계없이 최소 3등급입니다.",
+                    fontSize = 19.sp,
+                    lineHeight = 30.sp,
+                    color = Lux.TextFaint
+                )
+            }
+        }
+    }
+}
+
+/** 회색 설명과 그 아래의 값. 상세 화면의 기본 단위. */
+@Composable
+private fun Field(caption: String, content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier.padding(bottom = 26.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Caption(caption)
+        content()
+    }
+}
+
+/** 고장 목록의 한 줄. 선택된 줄만 회색 바탕을 깐다. */
+@Composable
+private fun FaultRow(advice: Advice, isSelected: Boolean, onClick: () -> Unit) {
+    val color = levelColor(advice.level)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(Lux.ButtonShape)
+            .background(if (isSelected) Lux.Fill else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(horizontal = 18.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             Modifier
-                .size(width = 4.dp, height = 44.dp)
-                .background(if (isSelected) Lux.Accent else Color.Transparent)
+                .size(11.dp)
+                .clip(CircleShape)
+                .background(color)
         )
-        Spacer(Modifier.width(12.dp))
-        LevelBadge(advice.level)
-        Spacer(Modifier.width(14.dp))
-        Column {
-            Text(advice.part.label, fontSize = 25.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
-            Text(LevelInfo.title(advice.level), fontSize = 19.sp, color = Lux.TextDim)
-        }
-    }
-}
-
-@Composable
-private fun LevelBadge(level: Int) {
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(levelColor(level)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("$level", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = onLevelColor(level))
-    }
-}
-
-/** 오른쪽 구역: 고른 부품의 진단 상세. 정비 권고, AI 설명, 판정 근거. */
-@Composable
-private fun AdvicePanel(part: Part?, advice: Advice?, env: Environment, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .luxPanel()
-            .padding(28.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        SectionLabel("진단 상세")
-
-        if (part == null) {
-            Text("주행에 지장을 주는\n고장이 없습니다.", fontSize = 36.sp, lineHeight = 50.sp, fontWeight = FontWeight.SemiBold)
-            Text(
-                "차량 그림의 부위를 누르면 그 부품의 상태를 볼 수 있습니다.",
-                fontSize = 21.sp,
-                lineHeight = 32.sp,
-                color = Lux.TextDim
-            )
-            return@Column
-        }
-
-        Text(part.label, fontSize = 42.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
-
-        if (advice == null) {
-            StatePill("정상", Lux.Ok, Color(0xFF04210E))
-            Text("이 부위에서 감지된 고장이 없습니다.", fontSize = 24.sp, lineHeight = 36.sp, color = Lux.TextSoft)
-            return@Column
-        }
-
-        val color = levelColor(advice.level)
-        StatePill("${advice.level}등급 · ${LevelInfo.title(advice.level)}", color, onLevelColor(advice.level))
+        Spacer(Modifier.width(16.dp))
         Text(
-            LevelInfo.action(advice.level),
-            fontSize = 28.sp,
-            lineHeight = 40.sp,
-            fontWeight = FontWeight.SemiBold,
+            advice.part.label,
+            modifier = Modifier.weight(1f),
+            fontSize = 24.sp,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
             color = Lux.Text
         )
-
-        Hairline()
-        AiExplanation(advice, env)
-
-        Hairline()
-        SectionLabel("판정 근거")
-        advice.reasons.forEach { reason ->
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(reason.label, fontSize = 22.sp, color = Lux.TextSoft, modifier = Modifier.weight(1f))
-                Text("+${reason.points}", fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
-            }
-        }
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            Text("긴급도 점수", fontSize = 22.sp, color = Lux.TextDim, modifier = Modifier.weight(1f))
-            Text("${advice.score}", fontSize = 46.sp, fontWeight = FontWeight.SemiBold, color = color)
-            Text("점", modifier = Modifier.padding(start = 4.dp, bottom = 8.dp), fontSize = 21.sp, color = Lux.TextDim)
-        }
-        if (advice.part.baseSeverity == 3 && advice.score < 4) {
-            Text(
-                "안전에 직결되는 부품이라 점수와 관계없이 최소 3등급으로 판정합니다.",
-                fontSize = 18.sp,
-                lineHeight = 28.sp,
-                color = Lux.TextFaint
-            )
-        }
-    }
-}
-
-/** 등급이나 정상 여부를 알리는 색 알약. */
-@Composable
-private fun StatePill(label: String, color: Color, textColor: Color) {
-    Box(
-        modifier = Modifier
-            .clip(Lux.Pill)
-            .background(color)
-            .padding(horizontal = 20.dp, vertical = 8.dp)
-    ) {
-        Text(label, fontSize = 23.sp, fontWeight = FontWeight.Bold, color = textColor)
+        Text(
+            "${advice.level}등급 · ${LevelInfo.title(advice.level)}",
+            fontSize = 21.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = color
+        )
     }
 }
 
@@ -589,24 +469,21 @@ private fun AiExplanation(advice: Advice, env: Environment) {
         aiText != null -> "Gemini가 생성"
         !GeminiExplainer.isConfigured -> "기본 설명 · Gemini API 키 미설정"
         failed -> "기본 설명 · AI 응답 실패"
-        else -> "AI 설명 생성 중…"
+        else -> "생성 중…"
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        SectionLabel("AI 설명", color = Lux.Accent)
-        Spacer(Modifier.width(14.dp))
-        Text(source, fontSize = 18.sp, color = Lux.TextFaint)
+    Field("AI 설명 · $source") {
+        Text(
+            aiText ?: Explainer.explain(advice, env),
+            fontSize = 22.sp,
+            lineHeight = 36.sp,
+            color = Lux.Text
+        )
+        Text(
+            "설명은 참고용입니다. 최종 판단은 정비 전문가에게 받으세요.",
+            fontSize = 18.sp,
+            color = Lux.TextFaint
+        )
     }
-    Text(
-        aiText ?: Explainer.explain(advice, env),
-        fontSize = 23.sp,
-        lineHeight = 37.sp,
-        color = Lux.TextSoft
-    )
-    Text(
-        "설명은 참고용입니다. 최종 판단은 정비 전문가에게 받으세요.",
-        fontSize = 18.sp,
-        color = Lux.TextFaint
-    )
 }
 
 private data class CheckItem(val name: String, val detail: String, val part: Part)
@@ -622,11 +499,7 @@ private val CHECK_ITEMS = listOf(
 
 /** 자가진단 실행 화면: 전체 점검 버튼과 기능별 진행 상태. */
 @Composable
-private fun SelfCheckPanel(
-    advices: List<Advice>,
-    onOpenPart: (Part) -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun SelfCheckPanel(advices: List<Advice>, onOpenPart: (Part) -> Unit) {
     // done: 점검을 마친 항목 수. -1이면 아직 점검을 시작하지 않은 상태.
     var done by remember { mutableIntStateOf(-1) }
     var runId by remember { mutableIntStateOf(0) }
@@ -643,17 +516,18 @@ private fun SelfCheckPanel(
     }
 
     Column(
-        modifier = modifier
-            .luxPanel()
-            .padding(horizontal = 32.dp, vertical = 28.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 44.dp, vertical = 36.dp)
             .verticalScroll(rememberScrollState())
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SectionLabel("자가진단")
+            Column(modifier = Modifier.weight(1f)) {
+                Text("자가진단", fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
+                Spacer(Modifier.height(6.dp))
                 Text(
                     when {
-                        done < 0 -> "전체 점검을 시작하세요"
+                        done < 0 -> "기능별로 차량 상태를 확인합니다"
                         running -> "점검 중  $done / $total"
                         else -> {
                             val faultCount = CHECK_ITEMS.count { item -> advices.any { it.part == item.part } }
@@ -661,25 +535,23 @@ private fun SelfCheckPanel(
                             else "${total}개 항목 중 ${faultCount}개에서 이상 발견"
                         }
                     },
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Lux.Text
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Lux.Accent
                 )
             }
-            PrimaryButton(if (done < 0) "전체 점검" else "다시 점검", enabled = !running) { runId++ }
+            ActionButton(if (done < 0) "전체 점검" else "다시 점검", enabled = !running) { runId++ }
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(24.dp))
         LinearProgressIndicator(
             progress = { if (done < 0) 0f else done.toFloat() / total },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(4.dp)
-                .clip(Lux.Pill),
+                .height(3.dp),
             color = Lux.Accent,
-            trackColor = Lux.Stroke
+            trackColor = Lux.Line
         )
-        Spacer(Modifier.height(8.dp))
 
         CHECK_ITEMS.forEachIndexed { index, item ->
             val advice = advices.firstOrNull { it.part == item.part }
@@ -688,48 +560,32 @@ private fun SelfCheckPanel(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(if (checking) Lux.Selected else Color.Transparent)
                     .clickable(enabled = checked && advice != null) { onOpenPart(item.part) }
-                    .padding(vertical = 15.dp),
+                    .padding(vertical = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    Modifier
-                        .size(width = 4.dp, height = 44.dp)
-                        .background(if (checking) Lux.Accent else Color.Transparent)
-                )
-                Spacer(Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(item.name, fontSize = 25.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
-                    Text(item.detail, fontSize = 19.sp, color = Lux.TextDim)
+                    Text(item.name, fontSize = 24.sp, fontWeight = FontWeight.Medium, color = Lux.Text)
+                    Caption(item.detail)
                 }
                 when {
-                    checking -> Text("점검 중…", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Lux.Accent)
-                    !checked -> Text("대기", fontSize = 22.sp, color = Lux.TextFaint)
-                    advice == null -> Text("정상", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Lux.Ok)
-                    else -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            LevelInfo.title(advice.level),
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = levelColor(advice.level)
-                        )
-                        Spacer(Modifier.width(14.dp))
-                        LevelBadge(advice.level)
-                    }
+                    checking -> Text("점검 중…", fontSize = 21.sp, fontWeight = FontWeight.Medium, color = Lux.Accent)
+                    !checked -> Text("대기", fontSize = 21.sp, color = Lux.TextFaint)
+                    advice == null -> Text("정상", fontSize = 21.sp, fontWeight = FontWeight.SemiBold, color = Lux.Ok)
+                    else -> Text(
+                        "${advice.level}등급 · ${LevelInfo.title(advice.level)}",
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = levelColor(advice.level)
+                    )
                 }
-                Spacer(Modifier.width(8.dp))
             }
             Hairline()
-        }
-        if (done >= total && advices.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text("이상이 있는 항목을 누르면 진단 상세로 이동합니다.", fontSize = 18.sp, color = Lux.TextFaint)
         }
     }
 }
 
-/** 아래: 에뮬레이터에서 고장과 환경을 직접 넣어 보는 시연용 패널. */
+/** 아래: 에뮬레이터에서 고장과 환경을 직접 넣어 보는 시연용 패널. 메뉴의 스위치로 켰을 때만 보인다. */
 @Composable
 private fun DemoPanel(
     vehicle: VehicleState,
@@ -745,25 +601,10 @@ private fun DemoPanel(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .luxPanel()
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .background(Lux.Surface)
+            .padding(horizontal = 40.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        DemoRow("차량 값") {
-            if (!vehicle.connected) {
-                Text(
-                    "차량 서비스에 연결되지 않았습니다" + (vehicle.connectionError?.let { " ($it)" } ?: ""),
-                    fontSize = 19.sp,
-                    color = Lux.TextDim
-                )
-            } else {
-                VehicleValue("출력 제한 경고", vehicle.powerDown)
-                VehicleValue("브레이크액", vehicle.brakeFluid)
-                VehicleValue("전조등", vehicle.lowBeam)
-                VehicleValue("와이퍼", vehicle.wiper)
-                VehicleValue("경고등", vehicle.telltales)
-            }
-        }
         DemoRow("시나리오") {
             Chip("A 낮 · 전조등", on = false) { onScenario(setOf(Part.HEADLAMP), Environment(), false) }
             Chip("B 밤 · 전조등", on = false) { onScenario(setOf(Part.HEADLAMP), Environment(night = true), false) }
@@ -784,6 +625,17 @@ private fun DemoPanel(
             Chip("고속도로", on = env.highway) { onEnvChange(env.copy(highway = !env.highway)) }
             Chip("남은 거리 김", on = env.longTrip) { onEnvChange(env.copy(longTrip = !env.longTrip)) }
         }
+        DemoRow("차량 값") {
+            if (!vehicle.connected) {
+                Caption("차량 서비스에 연결되지 않았습니다" + (vehicle.connectionError?.let { " ($it)" } ?: ""))
+            } else {
+                VehicleValue("출력 제한 경고", vehicle.powerDown)
+                VehicleValue("브레이크액", vehicle.brakeFluid)
+                VehicleValue("전조등", vehicle.lowBeam)
+                VehicleValue("와이퍼", vehicle.wiper)
+                VehicleValue("경고등", vehicle.telltales)
+            }
+        }
     }
 }
 
@@ -793,13 +645,7 @@ private fun DemoRow(title: String, content: @Composable () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(
-            title,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Medium,
-            color = Lux.TextFaint,
-            modifier = Modifier.width(96.dp)
-        )
+        Caption(title, modifier = Modifier.width(96.dp))
         content()
     }
 }
@@ -810,7 +656,7 @@ private fun VehicleValue(label: String, reading: Reading) {
         modifier = Modifier.padding(end = 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("$label  ", fontSize = 18.sp, color = Lux.TextFaint)
-        Text(reading.text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = Lux.TextSoft)
+        Caption("$label  ")
+        Text(reading.text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
     }
 }
