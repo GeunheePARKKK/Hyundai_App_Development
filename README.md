@@ -7,9 +7,10 @@
 
 | 경로 | 내용 |
 | --- | --- |
-| `code/` | Android Studio 프로젝트 (앱 이름 CarDoctor, 패키지 `com.cardoctor.apr`) |
-| `code/app/` | 앱 소스 코드 |
-| `code/*.gradle.kts`, `code/gradle/` | 빌드 설정 (Gradle Scripts) |
+| `app/` | 앱 소스 코드 (앱 이름 CarDoctor, 패키지 `com.cardoctor.apr`) |
+| `*.gradle.kts`, `gradle.properties`, `gradle/` | 빌드 설정 (Android Studio의 Gradle Scripts) |
+
+레포 최상위 폴더가 곧 Android Studio 프로젝트입니다.
 
 ## 실행 방법
 
@@ -30,7 +31,7 @@
    ```
    git clone https://github.com/GeunheePARKKK/Hyundai_App_Development
    ```
-2. Android Studio에서 `Open`을 누르고 **`code` 폴더**를 엽니다. (레포 최상위 폴더가 아닙니다.)
+2. Android Studio에서 `Open`을 누르고 받은 `Hyundai_App_Development` 폴더를 엽니다.
 3. Gradle Sync가 끝날 때까지 기다립니다.
 4. `Device Manager`에서 Pleos 가상 기기를 먼저 켜고, 차량 화면이 다 뜬 뒤에 ▶(Run)을 누릅니다.
    - 기기가 꺼진 상태에서 바로 ▶를 누르면 앱 창이 화면 밖에 만들어져 안 보일 수 있습니다. 그럴 때는 ■(Stop)을 누르고 ▶를 다시 누릅니다.
@@ -52,6 +53,7 @@
 
 ### 2026-11-12
 
+- 프로젝트를 `code/` 폴더에서 레포 최상위로 이동 (레포 폴더를 바로 열어 실행할 수 있게 함)
 - 빈 프로젝트 생성 (Empty Activity, Jetpack Compose)
 - Pleos Maven 저장소와 Vehicle SDK 2.3.2 추가
 - 차량 데이터 권한 6개 추가: `CAR_SAFETY`, `CAR_TIRES`, `CAR_LIGHTS`, `CAR_SPEED`, `CAR_POWERTRAIN`, `READ_WINDSHIELD_WIPERS`
