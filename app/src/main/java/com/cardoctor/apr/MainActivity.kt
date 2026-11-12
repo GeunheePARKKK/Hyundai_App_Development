@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.cardoctor.apr.env.LiveEnvironment
 import com.cardoctor.apr.env.LiveEnvironmentReader
 import com.cardoctor.apr.ui.CarDoctorApp
@@ -50,7 +51,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             CarDoctorTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Scaffold(modifier = Modifier.fillMaxSize(), containerColor = Color(0xFF07090B)) { innerPadding ->
                     CarDoctorApp(
                         vehicle = vehicleReader.state,
                         live = live,

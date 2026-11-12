@@ -6,11 +6,15 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -96,7 +100,7 @@ private class Face(
 
 private val BodyColor = Color(0xFFE4E7EB)
 private val TrimColor = Color(0xFFB4BAC3)
-private val GlassColor = Color(0xFF29313B)
+private val GlassColor = Color(0xFF0E1319)
 private val TireColor = Color(0xFF1F2328)
 private val RimColor = Color(0xFFC3C8D0)
 private val LampColor = Color(0xFFFBFCFD)
@@ -446,7 +450,7 @@ internal fun Car3DView(
             val cosPitch = cos(pitchRad)
             val sinPitch = sin(pitchRad)
             val distance = 9f
-            val unit = minOf(size.width, size.height) / 4.6f * zoom
+            val unit = minOf(size.width, size.height) / 4.2f * zoom
             val origin = Offset(size.width / 2f, size.height * 0.54f)
             val modelCenter = Vec(0f, 0.72f, 0f)
 
@@ -474,7 +478,7 @@ internal fun Car3DView(
                 val angle = 2.0 * PI * i / 24
                 toScreen(toCamera(Vec(2.45f * cos(angle).toFloat(), 0f, 1.08f * sin(angle).toFloat())))
             }
-            drawPath(polygonPath(shadow), Color(0x24000000))
+            drawPath(polygonPath(shadow), Color(0x8C000000))
 
             class Item(val face: Face, val layer: Int, val objectDepth: Float, val depth: Float)
 
@@ -521,8 +525,10 @@ internal fun Car3DView(
         }
 
         Column(
-            modifier = Modifier.align(Alignment.TopEnd),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ViewButton("+") { zoom = (zoom * 1.2f).coerceAtMost(2.4f) }
             ViewButton("−") { zoom = (zoom / 1.2f).coerceAtLeast(0.6f) }
@@ -537,12 +543,16 @@ internal fun Car3DView(
 
 @Composable
 private fun ViewButton(label: String, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier.size(48.dp),
-        contentPadding = PaddingValues(0.dp)
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(Color(0x66101317))
+            .border(1.dp, Lux.StrokeStrong, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Text(label, fontSize = 22.sp, color = Color(0xFF1B1F24))
+        Text(label, fontSize = 22.sp, color = Lux.TextSoft)
     }
 }
 
