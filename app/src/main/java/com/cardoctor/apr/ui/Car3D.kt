@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -100,7 +102,7 @@ private class Face(
 
 private val BodyColor = Color(0xFFE4E7EB)
 private val TrimColor = Color(0xFFB4BAC3)
-private val GlassColor = Color(0xFF0E1319)
+private val GlassColor = Color(0xFF29313B)
 private val TireColor = Color(0xFF1F2328)
 private val RimColor = Color(0xFFC3C8D0)
 private val LampColor = Color(0xFFFBFCFD)
@@ -368,6 +370,21 @@ private fun buildCar(): List<Face> {
 
 private class DrawnFace(val polygon: List<Offset>, val zone: Zone?)
 
+/** 고장 표시를 찍을 위치와 그 면이 향하는 방향. 카메라 쪽을 향할 때만 표시한다. */
+private class Anchor(val zone: Zone, val position: Vec, val normal: Vec)
+
+private val ANCHORS: List<Anchor> = buildList {
+    listOf(-1f, 1f).forEach { s ->
+        add(Anchor(Zone.HEADLAMP, Vec(2.17f, 0.66f, 0.62f * s), Vec(0.8f, 0.15f, 0.55f * s).normalized()))
+        listOf(1.38f, -1.38f).forEach { cx ->
+            add(Anchor(Zone.TIRE, Vec(cx + 0.21f, 0.60f, 0.95f * s), Vec(0f, 0f, s)))
+            add(Anchor(Zone.BRAKE, Vec(cx, 0.36f, 0.95f * s), Vec(0f, 0f, s)))
+        }
+    }
+    add(Anchor(Zone.WIPER, Vec(0.74f, 1.19f, 0f), Vec(0.55f, 0.83f, 0f).normalized()))
+    add(Anchor(Zone.HOOD, Vec(1.55f, 0.93f, 0f), Vec(0.15f, 0.98f, 0f).normalized()))
+}
+
 private fun contains(polygon: List<Offset>, point: Offset): Boolean {
     var inside = false
     var j = polygon.lastIndex
@@ -420,6 +437,10 @@ internal fun Car3DView(
         Zone.BRAKE -> Part.BRAKE
         Zone.HOOD -> if (Part.POWER in colors && Part.COOLANT !in colors) Part.POWER else Part.COOLANT
     }
+
+    val levels = advices.associate { it.part to it.level }
+    val phase = rememberPingPhase(advices.isNotEmpty())
+    val measurer = rememberTextMeasurer()
 
     // 마지막으로 그린 면들(앞에 있는 면이 뒤쪽). 눌린 위치의 부품을 찾는 데 쓴다.
     val drawn = remember { mutableListOf<DrawnFace>() }
@@ -478,7 +499,7 @@ internal fun Car3DView(
                 val angle = 2.0 * PI * i / 24
                 toScreen(toCamera(Vec(2.45f * cos(angle).toFloat(), 0f, 1.08f * sin(angle).toFloat())))
             }
-            drawPath(polygonPath(shadow), Color(0x8C000000))
+            drawPath(polygonPath(shadow), Color(0x2E000000))
 
             class Item(val face: Face, val layer: Int, val objectDepth: Float, val depth: Float)
 
@@ -509,9 +530,11 @@ internal fun Car3DView(
                 val shine = max(0f, face.normal dot halfway).pow(24)
                 val fault = zoneColor(face.zone)
                 val color = when {
-                    fault != null && face.fullTint -> shade(fault, 0.84f + 0.16f * diffuse, 0f)
+                    // 고장 난 부품은 원색으로 덮지 않고 등급 색을 섞어 물들인다.
+                    fault != null && face.fullTint ->
+                        shade(lerp(face.color, fault, 0.6f), 0.78f + 0.22f * diffuse, 0.1f * shine)
                     face.glossy -> {
-                        val base = if (fault != null) lerp(face.color, fault, 0.4f) else face.color
+                        val base = if (fault != null) lerp(face.color, fault, 0.25f) else face.color
                         shade(base, 0.85f + 0.15f * diffuse, 0.35f * shine)
                     }
                     else -> shade(face.color, 0.66f + 0.34f * diffuse, 0.18f * shine)
@@ -521,6 +544,32 @@ internal fun Car3DView(
                 // 면 사이의 실틈이 보이지 않게 같은 색으로 가장자리를 한 번 더 그린다.
                 drawPath(path, color, style = Stroke(width = 1.5f))
                 drawn += DrawnFace(polygon, face.zone)
+            }
+
+            // 고장 위치 표시: 카메라 쪽을 향한 위치마다 빛나는 점을 찍고,
+            // 부품마다 가장 정면으로 보이는 한 곳에 이름표를 단다.
+            val area = Rect(0f, 0f, size.width, size.height - 40.dp.toPx()) // 아래 안내 문구 자리는 비운다
+            val placed = mutableListOf<Rect>()
+            ANCHORS.groupBy { it.zone }.forEach { (zone, anchors) ->
+                val color = zoneColor(zone) ?: return@forEach
+                val visible = anchors
+                    .map { it to (it.normal dot (cameraPosition - it.position).normalized()) }
+                    .filter { it.second > 0.12f }
+                if (visible.isEmpty()) return@forEach
+                visible.forEach { (anchor, _) -> drawFaultMarker(toScreen(toCamera(anchor.position)), color, phase) }
+
+                val best = toScreen(toCamera(visible.maxBy { it.second }.first.position))
+                val part = zonePart(zone)
+                // 이름표는 차 바깥쪽으로 뺀다. 바퀴에 겹치는 타이어와 브레이크는 위아래로 갈라 놓는다.
+                val outward = if (best.x >= origin.x) 1f else -1f
+                val direction = when (zone) {
+                    Zone.HEADLAMP -> Offset(outward * 0.9f, 1f)
+                    Zone.TIRE -> Offset(outward * 0.3f, -1f)
+                    Zone.BRAKE -> Offset(outward * 0.2f, 1f)
+                    Zone.WIPER -> Offset(-outward * 0.2f, -1f)
+                    Zone.HOOD -> Offset(outward * 0.5f, -1f)
+                }
+                drawFaultLabel(measurer, best, direction, FaultLabel(part.label, levels[part] ?: 0), color, area, placed)
             }
         }
 
@@ -547,12 +596,12 @@ private fun ViewButton(label: String, onClick: () -> Unit) {
         modifier = Modifier
             .size(46.dp)
             .clip(CircleShape)
-            .background(Color(0x66101317))
+            .background(Color.White)
             .border(1.dp, Lux.StrokeStrong, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontSize = 22.sp, color = Lux.TextSoft)
+        Text(label, fontSize = 22.sp, color = Lux.Text)
     }
 }
 

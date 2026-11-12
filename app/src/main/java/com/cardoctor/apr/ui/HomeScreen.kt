@@ -194,7 +194,7 @@ private fun TopBar(
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 6.sp,
-            color = Lux.Accent
+            color = Lux.Gold
         )
         Spacer(Modifier.width(44.dp))
         Screen.entries.forEach { item ->
@@ -208,19 +208,19 @@ private fun TopBar(
                 Text(
                     item.label,
                     fontSize = 24.sp,
-                    fontWeight = if (isCurrent) FontWeight.Medium else FontWeight.Light,
-                    color = if (isCurrent) Lux.Text else Lux.TextFaint
+                    fontWeight = if (isCurrent) FontWeight.Medium else FontWeight.SemiBold,
+                    color = if (isCurrent) Lux.Text else Lux.TextDim
                 )
                 Spacer(Modifier.height(6.dp))
                 Box(
                     Modifier
                         .size(width = 36.dp, height = 2.dp)
-                        .background(if (isCurrent) Lux.Accent else Color.Transparent)
+                        .background(if (isCurrent) Lux.Gold else Color.Transparent)
                 )
             }
         }
         Spacer(Modifier.weight(1f))
-        Text("음성 $voiceStatus", fontSize = 17.sp, color = Lux.TextFaint)
+        Text("음성 $voiceStatus", fontSize = 18.sp, color = Lux.TextFaint)
         Spacer(Modifier.width(14.dp))
         Chip("음성 안내", on = voiceOn, onClick = onToggleVoice)
     }
@@ -259,9 +259,8 @@ private fun StatusPanel(
             EnvChip(if (env.rain) "비·눈" else "강수 없음", risky = env.rain)
             EnvChip(if (env.highway) "고속도로" else "일반 도로", risky = env.highway)
             if (env.longTrip) EnvChip("남은 거리 김", risky = true)
-            Spacer(Modifier.width(6.dp))
-            Text(envSource, fontSize = 16.sp, color = Lux.TextFaint)
         }
+        Text(envSource, fontSize = 18.sp, color = Lux.TextFaint)
 
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             // 차량 무대: 가운데가 은은하게 밝은 바닥 위에 차를 올린다.
@@ -271,7 +270,7 @@ private fun StatusPanel(
                     .clip(RoundedCornerShape(24.dp))
                     .background(
                         Brush.radialGradient(
-                            colors = listOf(Color(0xFF2C333D), Color(0xFF171B21), Color(0xFF101317)),
+                            colors = listOf(Color.White, Color(0xFFF1F3F6), Color(0xFFE4E8ED)),
                             radius = 520f
                         )
                     )
@@ -308,7 +307,7 @@ private fun StatusPanel(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 12.dp),
-                    fontSize = 15.sp,
+                    fontSize = 18.sp,
                     color = Lux.TextFaint
                 )
             }
@@ -322,7 +321,6 @@ private fun StatusPanel(
                     Text(
                         "모든 점검 항목이 정상입니다.",
                         fontSize = 22.sp,
-                        fontWeight = FontWeight.Light,
                         color = Lux.TextDim
                     )
                 }
@@ -367,7 +365,7 @@ private fun StatusHero(topLevel: Int?, pulse: Float) {
             SectionLabel("현재 상태", color = color)
             Spacer(Modifier.height(4.dp))
             if (topLevel == null) {
-                Text("이상 없음", fontSize = 40.sp, fontWeight = FontWeight.Light, color = Lux.Text)
+                Text("이상 없음", fontSize = 40.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
             } else {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("${topLevel}등급", fontSize = 44.sp, fontWeight = FontWeight.SemiBold, color = color)
@@ -376,7 +374,7 @@ private fun StatusHero(topLevel: Int?, pulse: Float) {
                         LevelInfo.title(topLevel),
                         modifier = Modifier.padding(bottom = 5.dp),
                         fontSize = 32.sp,
-                        fontWeight = FontWeight.Light,
+                        fontWeight = FontWeight.SemiBold,
                         color = Lux.Text
                     )
                 }
@@ -391,8 +389,8 @@ private fun EnvChip(label: String, risky: Boolean) {
     Row(
         modifier = Modifier
             .clip(Lux.Pill)
-            .background(if (risky) Lux.Accent.copy(alpha = 0.16f) else Color.Transparent)
-            .border(1.dp, if (risky) Lux.Accent else Lux.Stroke, Lux.Pill)
+            .background(if (risky) Lux.Accent else Color.White)
+            .border(1.dp, if (risky) Lux.Accent else Lux.StrokeStrong, Lux.Pill)
             .padding(horizontal = 16.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -400,14 +398,14 @@ private fun EnvChip(label: String, risky: Boolean) {
             Modifier
                 .size(7.dp)
                 .clip(CircleShape)
-                .background(if (risky) Lux.Accent else Lux.TextFaint)
+                .background(if (risky) Lux.GoldLight else Lux.TextFaint)
         )
         Spacer(Modifier.width(9.dp))
         Text(
             label,
             fontSize = 18.sp,
-            fontWeight = if (risky) FontWeight.Medium else FontWeight.Normal,
-            color = if (risky) Lux.AccentSoft else Lux.TextDim
+            fontWeight = if (risky) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (risky) Color.White else Lux.Text
         )
     }
 }
@@ -432,7 +430,7 @@ private fun FaultRow(advice: Advice, isSelected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Lux.RowShape)
-            .background(if (isSelected) color.copy(alpha = 0.10f) else Color(0x0DFFFFFF))
+            .background(if (isSelected) color.copy(alpha = 0.08f) else Lux.RowFill)
             .border(1.dp, if (isSelected) color.copy(alpha = 0.8f) else Lux.Stroke, Lux.RowShape)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 15.dp),
@@ -454,11 +452,10 @@ private fun LevelBadge(level: Int) {
         modifier = Modifier
             .size(46.dp)
             .clip(CircleShape)
-            .background(color.copy(alpha = 0.16f))
-            .border(1.5.dp, color, CircleShape),
+            .background(color),
         contentAlignment = Alignment.Center
     ) {
-        Text("$level", fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = color)
+        Text("$level", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
     }
 }
 
@@ -475,7 +472,7 @@ private fun AdvicePanel(part: Part?, advice: Advice?, env: Environment, modifier
         SectionLabel("진단 상세")
 
         if (part == null) {
-            Text("주행에 지장을 주는\n고장이 없습니다.", fontSize = 36.sp, lineHeight = 50.sp, fontWeight = FontWeight.Light)
+            Text("주행에 지장을 주는\n고장이 없습니다.", fontSize = 36.sp, lineHeight = 50.sp, fontWeight = FontWeight.SemiBold)
             Text(
                 "차량 그림의 부위를 누르면 그 부품의 상태를 볼 수 있습니다.",
                 fontSize = 20.sp,
@@ -485,7 +482,7 @@ private fun AdvicePanel(part: Part?, advice: Advice?, env: Environment, modifier
             return@Column
         }
 
-        Text(part.label, fontSize = 42.sp, fontWeight = FontWeight.Light, color = Lux.Text)
+        Text(part.label, fontSize = 42.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
 
         if (advice == null) {
             StatePill("정상", Lux.Ok)
@@ -516,7 +513,7 @@ private fun AdvicePanel(part: Part?, advice: Advice?, env: Environment, modifier
         }
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Text("긴급도 점수", fontSize = 21.sp, color = Lux.TextDim, modifier = Modifier.weight(1f))
-            Text("${advice.score}", fontSize = 46.sp, fontWeight = FontWeight.Light, color = color)
+            Text("${advice.score}", fontSize = 46.sp, fontWeight = FontWeight.SemiBold, color = color)
             Text("점", modifier = Modifier.padding(start = 4.dp, bottom = 8.dp), fontSize = 20.sp, color = Lux.TextDim)
         }
         if (advice.part.baseSeverity == 3 && advice.score < 4) {
@@ -536,11 +533,10 @@ private fun StatePill(label: String, color: Color) {
     Box(
         modifier = Modifier
             .clip(Lux.Pill)
-            .background(color.copy(alpha = 0.14f))
-            .border(1.dp, color.copy(alpha = 0.7f), Lux.Pill)
+            .background(color)
             .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
-        Text(label, fontSize = 23.sp, fontWeight = FontWeight.SemiBold, color = color)
+        Text(label, fontSize = 23.sp, fontWeight = FontWeight.Bold, color = Color.White)
     }
 }
 
@@ -570,18 +566,17 @@ private fun AiExplanation(advice: Advice, env: Environment) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         SectionLabel("AI 설명")
         Spacer(Modifier.width(14.dp))
-        Text(source, fontSize = 16.sp, color = Lux.TextFaint)
+        Text(source, fontSize = 18.sp, color = Lux.TextFaint)
     }
     Text(
         aiText ?: Explainer.explain(advice, env),
-        fontSize = 22.sp,
-        lineHeight = 36.sp,
-        fontWeight = FontWeight.Light,
-        color = Lux.TextSoft
+        fontSize = 23.sp,
+        lineHeight = 37.sp,
+        color = Lux.Text
     )
     Text(
         "설명은 참고용입니다. 최종 판단은 정비 전문가에게 받으세요.",
-        fontSize = 16.sp,
+        fontSize = 18.sp,
         color = Lux.TextFaint
     )
 }
@@ -640,7 +635,7 @@ private fun SelfCheckPanel(
                         }
                     },
                     fontSize = 36.sp,
-                    fontWeight = FontWeight.Light,
+                    fontWeight = FontWeight.SemiBold,
                     color = Lux.Text
                 )
             }
@@ -653,7 +648,7 @@ private fun SelfCheckPanel(
                 .fillMaxWidth()
                 .height(4.dp)
                 .clip(Lux.Pill),
-            color = Lux.Accent,
+            color = Lux.Gold,
             trackColor = Lux.Stroke
         )
 
@@ -665,8 +660,8 @@ private fun SelfCheckPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(Lux.RowShape)
-                    .background(if (checking) Lux.Accent.copy(alpha = 0.08f) else Color(0x0DFFFFFF))
-                    .border(1.dp, if (checking) Lux.Accent.copy(alpha = 0.6f) else Lux.Stroke, Lux.RowShape)
+                    .background(if (checking) Lux.Gold.copy(alpha = 0.12f) else Lux.RowFill)
+                    .border(1.dp, if (checking) Lux.Gold else Lux.Stroke, Lux.RowShape)
                     .clickable(enabled = checked && advice != null) { onOpenPart(item.part) }
                     .padding(horizontal = 24.dp, vertical = 15.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -676,7 +671,7 @@ private fun SelfCheckPanel(
                     Text(item.detail, fontSize = 18.sp, color = Lux.TextDim)
                 }
                 when {
-                    checking -> Text("점검 중…", fontSize = 22.sp, color = Lux.AccentSoft)
+                    checking -> Text("점검 중…", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
                     !checked -> Text("대기", fontSize = 22.sp, color = Lux.TextFaint)
                     advice == null -> Text("정상", fontSize = 22.sp, fontWeight = FontWeight.Medium, color = Lux.Ok)
                     else -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -693,7 +688,7 @@ private fun SelfCheckPanel(
             }
         }
         if (done >= total && advices.isNotEmpty()) {
-            Text("이상이 있는 항목을 누르면 진단 상세로 이동합니다.", fontSize = 17.sp, color = Lux.TextFaint)
+            Text("이상이 있는 항목을 누르면 진단 상세로 이동합니다.", fontSize = 18.sp, color = Lux.TextFaint)
         }
     }
 }
@@ -715,7 +710,7 @@ private fun DemoPanel(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(Color(0x0AFFFFFF))
+            .background(Color.White)
             .border(1.dp, Lux.Stroke, RoundedCornerShape(24.dp))
             .padding(horizontal = 26.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -766,7 +761,7 @@ private fun DemoRow(title: String, content: @Composable () -> Unit) {
     ) {
         Text(
             title,
-            fontSize = 16.sp,
+            fontSize = 18.sp,
             letterSpacing = 2.sp,
             color = Lux.TextFaint,
             modifier = Modifier.width(104.dp)
@@ -781,7 +776,7 @@ private fun VehicleValue(label: String, reading: Reading) {
         modifier = Modifier.padding(end = 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("$label  ", fontSize = 17.sp, color = Lux.TextFaint)
+        Text("$label  ", fontSize = 18.sp, color = Lux.TextFaint)
         Text(reading.text, fontSize = 18.sp, fontWeight = FontWeight.Medium, color = Lux.TextSoft)
     }
 }

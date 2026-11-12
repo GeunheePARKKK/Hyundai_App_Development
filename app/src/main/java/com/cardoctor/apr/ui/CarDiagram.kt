@@ -15,6 +15,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.dp
 import com.cardoctor.apr.diagnosis.Advice
 import com.cardoctor.apr.diagnosis.Part
 
@@ -37,7 +40,7 @@ private fun partAt(x: Float, y: Float, faulty: Set<Part>): Part? {
 
 /**
  * 위에서 내려다본 차량 그림. 차 앞쪽이 위.
- * 고장 난 부품은 등급 색으로 칠하고, 그 위치에 같은 색 원을 겹쳐 표시한다.
+ * 고장 난 부품은 등급 색으로 옅게 물들이고, 그 위치에 빛나는 점과 이름표를 표시한다.
  * 좌표는 모두 그림 크기에 대한 비율(0~1)이다.
  */
 @Composable
@@ -53,6 +56,9 @@ internal fun CarDiagram(
         it.part to if (it.level >= 4) lerp(Color.White, color, pulse) else color
     }
     val faultyParts = advices.map { it.part }.toSet()
+    val levels = advices.associate { it.part to it.level }
+    val phase = rememberPingPhase(advices.isNotEmpty())
+    val measurer = rememberTextMeasurer()
     Canvas(
         modifier = modifier.pointerInput(faultyParts) {
             detectTapGestures { tap ->
@@ -95,7 +101,7 @@ internal fun CarDiagram(
         }
 
         // 타이어: 차체 밖으로 조금 나온 부분만 보인다
-        val tireColor = colors[Part.TIRE] ?: Color(0xFF23272E)
+        val tireColor = colors[Part.TIRE]?.let { lerp(Color(0xFF23272E), it, 0.6f) } ?: Color(0xFF23272E)
         listOf(0.145f, 0.70f).forEach { top ->
             mirrored { mx ->
                 val left = minOf(mx(0.045f), mx(0.16f))
@@ -137,7 +143,7 @@ internal fun CarDiagram(
         }
 
         // 전조등
-        val lampColor = colors[Part.HEADLAMP] ?: Color.White
+        val lampColor = colors[Part.HEADLAMP]?.let { lerp(Color.White, it, 0.7f) } ?: Color.White
         mirrored { mx ->
             val lamp = polygon(listOf(at(mx(0.165f), 0.058f), at(mx(0.37f), 0.034f), at(mx(0.37f), 0.058f), at(mx(0.15f), 0.094f)))
             drawPath(lamp, lampColor)
@@ -201,20 +207,31 @@ internal fun CarDiagram(
         }
         drawLine(Color(0xFFB3261E), at(0.40f, 0.965f), at(0.60f, 0.965f), strokeWidth = 0.006f * h)
 
-        // 고장 위치 표시
-        fun marker(color: Color, x: Float, y: Float, radius: Float, solid: Boolean = false) {
-            val center = at(x, y)
-            drawCircle(color.copy(alpha = if (solid) 1f else 0.28f), radius * w, center)
-            drawCircle(color, radius * w, center, style = Stroke(width = 0.012f * w))
+        // 고장 위치 표시: 부품마다 빛나는 점을 찍고, 그중 한 곳에 이름표를 단다.
+        // 이름표는 차 그림 밖(무대의 여백)까지 나갈 수 있다.
+        val labelArea = Rect(-100.dp.toPx(), 0f, w + 100.dp.toPx(), h)
+        val placed = mutableListOf<Rect>()
+        fun mark(part: Part, spots: List<Offset>, labelDirection: Offset) {
+            val color = colors[part] ?: return
+            spots.forEach { drawFaultMarker(it, color, phase) }
+            drawFaultLabel(
+                measurer, spots.first(), labelDirection,
+                FaultLabel(part.label, levels.getValue(part)), color, labelArea, placed
+            )
         }
-        colors[Part.HEADLAMP]?.let { c -> mirrored { mx -> marker(c, mx(0.26f), 0.063f, 0.11f) } }
-        colors[Part.WIPER]?.let { c -> marker(c, 0.5f, 0.345f, 0.15f) }
-        colors[Part.TIRE]?.let { c ->
-            listOf(0.215f, 0.77f).forEach { y -> mirrored { mx -> marker(c, mx(0.10f), y, 0.10f) } }
-        }
-        colors[Part.BRAKE]?.let { c ->
-            listOf(0.215f, 0.77f).forEach { y -> mirrored { mx -> marker(c, mx(0.215f), y, 0.045f, solid = true) } }
-        }
-        (colors[Part.POWER] ?: colors[Part.COOLANT])?.let { c -> marker(c, 0.5f, 0.165f, 0.11f) }
+        mark(Part.HEADLAMP, listOf(at(0.74f, 0.063f), at(0.26f, 0.063f)), Offset(1f, -0.1f))
+        mark(Part.WIPER, listOf(at(0.5f, 0.345f)), Offset(1f, 0.05f))
+        mark(
+            Part.TIRE,
+            listOf(at(0.10f, 0.215f), at(0.90f, 0.215f), at(0.10f, 0.77f), at(0.90f, 0.77f)),
+            Offset(-1f, -0.35f)
+        )
+        mark(
+            Part.BRAKE,
+            listOf(at(0.785f, 0.215f), at(0.215f, 0.215f), at(0.215f, 0.77f), at(0.785f, 0.77f)),
+            Offset(1f, 0.45f)
+        )
+        val hoodPart = if (Part.POWER in colors && Part.COOLANT !in colors) Part.POWER else Part.COOLANT
+        mark(hoodPart, listOf(at(0.5f, 0.165f)), Offset(-1f, 0.1f))
     }
 }
