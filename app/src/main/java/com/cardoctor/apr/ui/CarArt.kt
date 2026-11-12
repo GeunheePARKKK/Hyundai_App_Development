@@ -23,6 +23,10 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import kotlin.math.PI
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /*
@@ -47,6 +51,43 @@ internal const val Z_BELT = 0.185f   // 허리선: 옆면의 꼭대기이자 유
 internal const val Z_ROOF = 0.290f   // 지붕
 internal const val WHEEL_R = 0.068f  // 바퀴 반지름
 private const val ARCH_R = 0.083f    // 휠 하우스 반지름
+
+// 윗면은 평평하지 않다. 보닛은 앞 유리 아래(허리선 높이)에서 앞코로 갈수록 내려가고,
+// 트렁크도 뒤 유리 아래에서 꼬리로 갈수록 조금 내려간다.
+private const val NOSE_Z = 0.132f      // 앞코 윗면의 높이
+private const val TAIL_Z = 0.166f      // 꼬리 윗면의 높이
+private const val HOOD_START_Y = 0.02f // 여기서부터 보닛이 올라가기 시작해
+private const val HOOD_END_Y = 0.26f   // 여기서 허리선 높이에 닿는다
+private const val TRUNK_START_Y = 0.84f
+private const val TRUNK_END_Y = 0.98f
+
+/** 앞에서 [y]만큼 떨어진 자리의 윗면 높이. */
+internal fun surfaceZ(y: Float): Float = when {
+    y <= HOOD_START_Y -> NOSE_Z
+    y < HOOD_END_Y -> {
+        val u = (y - HOOD_START_Y) / (HOOD_END_Y - HOOD_START_Y)
+        NOSE_Z + (Z_BELT - NOSE_Z) * (1f - (1f - u) * (1f - u))
+    }
+    y <= TRUNK_START_Y -> Z_BELT
+    else -> {
+        val u = ((y - TRUNK_START_Y) / (TRUNK_END_Y - TRUNK_START_Y)).coerceAtMost(1f)
+        Z_BELT - (Z_BELT - TAIL_Z) * u * sqrt(u)
+    }
+}
+
+/** 높이 [z]의 층이 앞쪽으로 어디까지 있는지. 보닛이 그 높이에 닿는 자리다. */
+private fun frontLimit(z: Float): Float {
+    if (z <= NOSE_Z) return 0f
+    val k = ((z - NOSE_Z) / (Z_BELT - NOSE_Z)).coerceIn(0f, 1f)
+    return HOOD_START_Y + (HOOD_END_Y - HOOD_START_Y) * (1f - sqrt(1f - k))
+}
+
+/** 높이 [z]의 층이 뒤쪽으로 어디까지 있는지. 트렁크가 그 높이에 닿는 자리다. */
+private fun rearLimit(z: Float): Float {
+    if (z <= TAIL_Z) return 1f
+    val k = ((Z_BELT - z) / (Z_BELT - TAIL_Z)).coerceIn(0f, 1f)
+    return TRUNK_START_Y + (TRUNK_END_Y - TRUNK_START_Y) * k.pow(1f / 1.5f)
+}
 
 /** 앞뒤 바퀴 축의 위치. */
 internal val AXLES = listOf(0.19f, 0.77f)
@@ -149,7 +190,15 @@ internal class WallLayer(
     /** 이 높이에서 휠 하우스, 바퀴, 휠의 앞뒤 길이의 절반(차 길이에 대한 비율). 없는 높이면 0. */
     val archHalf: Float,
     val tireHalf: Float,
-    val rimHalf: Float
+    val rimHalf: Float,
+    /** 차체 아랫부분을 둥글게 말아 넣는 정도. 1이면 윤곽 그대로, 작을수록 안으로 들어간다. */
+    val tuck: Float,
+    /** 이 층이 있는 범위(차 사각형의 세로 픽셀). 보닛과 트렁크가 내려가는 만큼 위층일수록 짧다. */
+    val front: Int,
+    val rear: Int,
+    /** 바로 위층의 범위. 이 층과 위층 사이의 띠가 이 높이에서 드러나는 윗면이다. */
+    val nextFront: Int,
+    val nextRear: Int
 )
 
 /**
@@ -158,7 +207,7 @@ internal class WallLayer(
  * 화면을 그릴 때 도형을 다시 계산하지 않도록, 필요한 모양을 모두 이미지로 만들어 둔다.
  * 색만 다른 층(옆면)은 한 가지 색의 실루엣 이미지 하나를 층마다 다른 색으로 물들여 쓴다.
  */
-internal class CarArt(val w: Int, val h: Int, density: Density) {
+internal class CarArt(val w: Int, val h: Int, private val density: Density) {
     val geo = Geo(w.toFloat(), h.toFloat())
 
     /** 이미지 가장자리의 여백. 그림자가 번질 자리다. */
@@ -180,6 +229,10 @@ internal class CarArt(val w: Int, val h: Int, density: Density) {
         val t = (z - Z_FLOOR) / (Z_BELT - Z_FLOOR)
         val fromAxle = (z - WHEEL_R) * (z - WHEEL_R)
         val rimRadius = WHEEL_R * 0.66f
+        val isTop = i == WALL_LAYERS
+        val front = (frontLimit(z) * h).roundToInt()
+        val rear = (rearLimit(z) * h).roundToInt()
+        val zAbove = Z_BELT * (i + 1) / WALL_LAYERS
         WallLayer(
             z = z,
             // 아래쪽은 어두운 하단 몰딩, 위로 갈수록 밝은 차체 색
@@ -189,11 +242,18 @@ internal class CarArt(val w: Int, val h: Int, density: Density) {
                 else -> ColorFilter.tint(lerp(Color(0xFF8C929B), Color(0xFFE6E8EB), t))
             },
             tailLamp = inBody && z in 0.118f..0.150f,
-            frontLamp = inBody && z in 0.118f..0.142f,
-            grille = inBody && z in 0.060f..0.105f,
+            frontLamp = inBody && z in 0.100f..0.124f,
+            grille = inBody && z in 0.055f..0.092f,
             archHalf = if (inBody) sqrt((ARCH_R * ARCH_R - fromAxle).coerceAtLeast(0f)) else 0f,
             tireHalf = sqrt((WHEEL_R * WHEEL_R - fromAxle).coerceAtLeast(0f)),
-            rimHalf = sqrt((rimRadius * rimRadius - fromAxle).coerceAtLeast(0f))
+            rimHalf = sqrt((rimRadius * rimRadius - fromAxle).coerceAtLeast(0f)),
+            // 바닥에서 옆면 높이의 1/3까지는 안으로 말려 들어가 있다가 점점 윤곽에 닿는다.
+            tuck = if (t < 0.34f) 0.95f + 0.05f * sin(t.coerceAtLeast(0f) / 0.34f * PI.toFloat() / 2f) else 1f,
+            front = front,
+            rear = rear,
+            // 맨 위층에서는 남은 가운데 부분 전체가 윗면이다.
+            nextFront = if (isTop) rear else (frontLimit(zAbove) * h).roundToInt(),
+            nextRear = if (isTop) rear else (rearLimit(zAbove) * h).roundToInt()
         )
     }
 
@@ -227,6 +287,8 @@ internal class CarArt(val w: Int, val h: Int, density: Density) {
 
                 val pillarColor = Color(0xFFF1F2F4)
                 val pillarWidth = 0.026f * g.w
+                // 기둥 토막은 아래층 쪽으로 조금 더 길게 긋는다. 층 사이의 턱에서 기둥이 끊겨 보이지 않게 한다.
+                val t = t - 1.6f / GLASS_STEPS
                 bothSides { s ->
                     drawLine(
                         pillarColor,
@@ -258,21 +320,19 @@ internal class CarArt(val w: Int, val h: Int, density: Density) {
     }
 
     val shadow: ImageBitmap = sprite(density) { drawShadow() }
-    val top: ImageBitmap = sprite(density) { drawTop() }
+    private val tops = mutableMapOf<Int, ImageBitmap>()
+
+    /**
+     * 윗면 그림. [lampLevel]이 0보다 크면 전조등 렌즈를 그 등급의 색으로 칠한 그림이다.
+     * 처음 쓸 때 만들어서 기억해 둔다.
+     */
+    fun top(lampLevel: Int): ImageBitmap = tops.getOrPut(lampLevel) {
+        sprite(density) { drawTop(if (lampLevel > 0) levelColor(lampLevel) else null) }
+    }
     val roof: ImageBitmap = sprite(density) { drawRoof() }
 
     /** 유리의 반사와 뒤 유리 열선. 위에서 볼 때만 겹쳐 그린다. */
     val glassDetail: ImageBitmap = sprite(density) { drawGlassDetail() }
-
-    /** 전조등 렌즈의 모양. 전조등이 고장일 때 윗면 그림 위에 등급 색으로 덧칠한다. */
-    fun lampLens(s: Float): Path = Path().apply {
-        moveTo(geo.x(s * 0.300f), 0.040f * geo.h)
-        lineTo(geo.x(s * 0.392f), 0.070f * geo.h)
-        lineTo(geo.x(s * 0.404f), 0.098f * geo.h)
-        lineTo(geo.x(s * 0.345f), 0.076f * geo.h)
-        lineTo(geo.x(s * 0.295f), 0.054f * geo.h)
-        close()
-    }
 
     /** 차 사각형보다 사방으로 [pad]만큼 큰 이미지에 그린다. 그리는 쪽에서는 차 사각형 좌표를 그대로 쓴다. */
     private fun sprite(
@@ -296,7 +356,7 @@ internal class CarArt(val w: Int, val h: Int, density: Density) {
     }
 
     /** 허리선 높이의 그림: 차체 윗면, 보닛과 트렁크, 램프, 사이드미러, 문틈. */
-    private fun DrawScope.drawTop() {
+    private fun DrawScope.drawTop(lampFault: Color?) {
         val g = geo
         val w = g.w
         val h = g.h
@@ -408,8 +468,15 @@ internal class CarArt(val w: Int, val h: Int, density: Density) {
         drawPath(lightBar, Color(0xFF262B32), style = Stroke(width = 0.011f * h, cap = StrokeCap.Round))
         drawPath(lightBar, Color(0xFFF4F7FA), style = Stroke(width = 0.004f * h, cap = StrokeCap.Round))
         bothSides { s ->
-            val lamp = lampLens(s)
-            drawPath(lamp, Color(0xFFE9EDF1))
+            val lamp = Path().apply {
+                moveTo(g.x(s * 0.300f), 0.040f * h)
+                lineTo(g.x(s * 0.392f), 0.070f * h)
+                lineTo(g.x(s * 0.404f), 0.098f * h)
+                lineTo(g.x(s * 0.345f), 0.076f * h)
+                lineTo(g.x(s * 0.295f), 0.054f * h)
+                close()
+            }
+            drawPath(lamp, lampFault?.let { lerp(Color(0xFFE9EDF1), it, 0.85f) } ?: Color(0xFFE9EDF1))
             drawPath(lamp, Color(0xFF3A4048), style = Stroke(width = 0.004f * w))
         }
 

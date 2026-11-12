@@ -20,9 +20,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
@@ -70,14 +72,17 @@ private class Spot(val dx: Float, val y: Float, val z: Float, val sideNormal: Fl
 private class PartSpots(val part: Part, val labelOnRight: Boolean, val spots: List<Spot>)
 
 private val PART_SPOTS = listOf(
-    PartSpots(Part.HEADLAMP, true, listOf(Spot(0.35f, 0.068f, Z_BELT), Spot(-0.35f, 0.068f, Z_BELT))),
+    PartSpots(
+        Part.HEADLAMP, true,
+        listOf(Spot(0.35f, 0.068f, surfaceZ(0.068f)), Spot(-0.35f, 0.068f, surfaceZ(0.068f)))
+    ),
     PartSpots(Part.WIPER, true, listOf(Spot(0.14f, 0.275f, Z_BELT + 0.012f))),
     PartSpots(
         Part.BRAKE, true,
-        AXLES.flatMap { y -> listOf(Spot(0.33f, y, Z_BELT), Spot(-0.33f, y, Z_BELT)) }
+        AXLES.flatMap { y -> listOf(Spot(0.33f, y, surfaceZ(y)), Spot(-0.33f, y, surfaceZ(y))) }
     ),
-    PartSpots(Part.COOLANT, false, listOf(Spot(-0.06f, 0.115f, Z_BELT))),
-    PartSpots(Part.POWER, false, listOf(Spot(-0.08f, 0.215f, Z_BELT))),
+    PartSpots(Part.COOLANT, false, listOf(Spot(-0.06f, 0.115f, surfaceZ(0.115f)))),
+    PartSpots(Part.POWER, false, listOf(Spot(-0.08f, 0.215f, surfaceZ(0.215f)))),
     PartSpots(
         Part.TIRE, false,
         AXLES.flatMap { y -> listOf(Spot(-0.443f, y, WHEEL_R, -1f), Spot(0.443f, y, WHEEL_R, 1f)) }
@@ -123,6 +128,10 @@ internal fun CarDiagram(
     val measurer = rememberTextMeasurer(cacheSize = 64)
     val currentOnPartTap by rememberUpdatedState(onPartTap)
 
+    // 층을 놓을 때 쓰는 붓. 가장자리를 다듬지 않는다(이유는 쓰는 곳에 적었다).
+    val piecePaint = remember { Paint().apply { isAntiAlias = false } }
+    val slabPaint = remember { Paint().apply { isAntiAlias = false } }
+
     // 한 번 그려 둔 차량 그림. 차의 크기가 바뀌면 새로 만든다.
     val artHolder = remember { arrayOfNulls<CarArt>(1) }
 
@@ -137,7 +146,8 @@ internal fun CarDiagram(
                 .pointerInput(Unit) {
                     detectDragGestures { change, drag ->
                         change.consume()
-                        yaw += drag.x * 0.35f
+                        // 오른쪽으로 끌면 화면 앞쪽(가까운 쪽)이 오른쪽으로 따라온다.
+                        yaw -= drag.x * 0.35f
                         elevation = (elevation + drag.y * 0.22f).coerceIn(MIN_ELEVATION, 90f)
                     }
                 }
@@ -220,46 +230,82 @@ internal fun CarDiagram(
              * 이미지에서 차 사각형 좌표의 (left, top)~(right, bottom) 부분만 그 자리에 그린다.
              * 윤곽 이미지의 일부만 그리면 "윤곽 안쪽이면서 이 사각형 안쪽"인 모양이 된다.
              */
-            fun DrawScope.piece(image: ImageBitmap, left: Float, top: Float, right: Float, bottom: Float, tint: ColorFilter) {
+            fun DrawScope.piece(image: ImageBitmap, left: Float, top: Float, right: Float, bottom: Float, tint: ColorFilter?) {
                 val l = left.toInt().coerceIn(-padInt, art.w + padInt)
                 val t = top.toInt().coerceIn(-padInt, art.h + padInt)
                 val r = right.toInt().coerceIn(-padInt, art.w + padInt)
                 val b = bottom.toInt().coerceIn(-padInt, art.h + padInt)
                 if (r <= l || b <= t) return
-                drawImage(
-                    image = image,
-                    srcOffset = IntOffset(l + padInt, t + padInt),
-                    srcSize = IntSize(r - l, b - t),
-                    dstOffset = IntOffset(l, t),
-                    dstSize = IntSize(r - l, b - t),
-                    colorFilter = tint
-                )
+                // 조각의 가장자리를 흐리게 다듬지 않는다. 다듬으면 층마다 가장자리에 옅은 줄이 남는다.
+                piecePaint.colorFilter = tint
+                drawIntoCanvas { canvas ->
+                    canvas.drawImageRect(
+                        image = image,
+                        srcOffset = IntOffset(l + padInt, t + padInt),
+                        srcSize = IntSize(r - l, b - t),
+                        dstOffset = IntOffset(l, t),
+                        dstSize = IntSize(r - l, b - t),
+                        paint = piecePaint
+                    )
+                }
+            }
+
+            /** 가장자리를 다듬지 않는 사각형. 바퀴처럼 얇은 층을 쌓는 데 쓴다. */
+            fun DrawScope.slab(color: Color, left: Float, top: Float, right: Float, bottom: Float) {
+                slabPaint.color = color
+                drawIntoCanvas { it.drawRect(minOf(left, right), top, maxOf(left, right), bottom, slabPaint) }
             }
 
             // 기울여 볼 때 반대편 옆면의 바퀴와 휠 하우스는 차체에 가려 보이지 않으므로 그리지 않는다.
             fun sideShown(s: Float) = cosE < 0.05f || s * sinYaw > -0.05f
 
+            val topArt = art.top(levels[Part.HEADLAMP] ?: 0)
+            val middle = Offset(w / 2f, h / 2f)
+
             art.walls.forEach { layer ->
                 plane(layer.z) {
                     if (layer.tint != null) {
-                        drawImage(art.silhouette, topLeft = spriteCorner, colorFilter = layer.tint)
-                        if (layer.tailLamp) piece(art.rim, -pad, 0.90f * h, w + pad, h + pad, TAIL_TINT)
-                        if (layer.frontLamp) {
-                            piece(art.rim, -pad, -pad, w + pad, 0.10f * h, FRONT_LAMP_TINT)
-                            if (lampTint != null) {
-                                piece(art.rim, g.x(0.27f), -pad, w + pad, 0.10f * h, lampTint)
-                                piece(art.rim, -pad, -pad, g.x(-0.27f), 0.10f * h, lampTint)
+                        // 차체 아랫부분은 안으로 조금 말려 들어가 있다. 바닥이 깎아지른 벽처럼 보이지 않게 한다.
+                        scale(layer.tuck, 1f - (1f - layer.tuck) * 0.4f, pivot = middle) {
+                            if (layer.front == 0 && layer.rear == art.h) {
+                                drawImage(art.silhouette, topLeft = spriteCorner, colorFilter = layer.tint)
+                            } else {
+                                // 보닛과 트렁크가 내려가는 만큼 위층은 앞뒤가 짧다.
+                                piece(art.silhouette, -pad, layer.front.toFloat(), w + pad, layer.rear.toFloat(), layer.tint)
+                            }
+                            if (layer.tailLamp) piece(art.rim, -pad, 0.90f * h, w + pad, h + pad, TAIL_TINT)
+                            if (layer.frontLamp) {
+                                piece(art.rim, -pad, -pad, w + pad, 0.10f * h, FRONT_LAMP_TINT)
+                                if (lampTint != null) {
+                                    piece(art.rim, g.x(0.27f), -pad, w + pad, 0.10f * h, lampTint)
+                                    piece(art.rim, -pad, -pad, g.x(-0.27f), 0.10f * h, lampTint)
+                                }
+                            }
+                            if (layer.grille) piece(art.rim, g.x(-0.30f), -pad, g.x(0.30f), 0.06f * h, GRILLE_TINT)
+                            // 휠 하우스: 바퀴 둘레의 어두운 반원
+                            if (layer.archHalf > 0f) {
+                                AXLES.forEach { axle ->
+                                    val top = (axle - layer.archHalf) * h
+                                    val bottom = (axle + layer.archHalf) * h
+                                    if (sideShown(1f)) piece(art.silhouette, g.x(0.395f), top, w + pad, bottom, ARCH_TINT)
+                                    if (sideShown(-1f)) piece(art.silhouette, -pad, top, g.x(-0.395f), bottom, ARCH_TINT)
+                                }
                             }
                         }
-                        if (layer.grille) piece(art.rim, g.x(-0.30f), -pad, g.x(0.30f), 0.06f * h, GRILLE_TINT)
-                        // 휠 하우스: 바퀴 둘레의 어두운 반원
-                        if (layer.archHalf > 0f) {
-                            AXLES.forEach { axle ->
-                                val top = (axle - layer.archHalf) * h
-                                val bottom = (axle + layer.archHalf) * h
-                                if (sideShown(1f)) piece(art.silhouette, g.x(0.395f), top, w + pad, bottom, ARCH_TINT)
-                                if (sideShown(-1f)) piece(art.silhouette, -pad, top, g.x(-0.395f), bottom, ARCH_TINT)
-                            }
+
+                        // 이 높이에서 드러나는 윗면: 이 층과 위층 사이의 띠에 윗면 그림의 그 부분을 놓는다.
+                        // 층마다 조금씩 올라가며 놓이므로 보닛과 트렁크가 비스듬한 면이 된다.
+                        // 띠를 위층 밑으로 몇 줄 더 넣어 둔다. 층 사이의 턱(옆면 색)이 줄무늬로 보이지 않게 한다.
+                        val under = 6f
+                        val isTopLayer = layer.nextFront >= layer.rear
+                        if (layer.nextFront > layer.front) {
+                            val from = if (layer.front == 0) -pad else layer.front.toFloat()
+                            val to = if (isTopLayer) layer.nextFront.toFloat() else layer.nextFront + under
+                            piece(topArt, -pad, from, w + pad, to, null)
+                        }
+                        if (layer.rear > layer.nextRear) {
+                            val to = if (layer.rear == art.h) h + pad else layer.rear.toFloat()
+                            piece(topArt, -pad, layer.nextRear - under, w + pad, to, null)
                         }
                     }
                     // 바퀴: 높이에 따라 길이가 달라지는 띠를 쌓으면 옆에서 볼 때 원이 된다.
@@ -267,37 +313,21 @@ internal fun CarDiagram(
                         AXLES.forEach { axle ->
                             bothSides { s ->
                                 if (!sideShown(s)) return@bothSides
-                                drawRect(
-                                    color = tireColor,
-                                    topLeft = Offset(minOf(g.x(s * 0.392f), g.x(s * tireEdge)), (axle - layer.tireHalf) * h),
-                                    size = Size((tireEdge - 0.392f) * w, 2f * layer.tireHalf * h)
+                                slab(
+                                    tireColor,
+                                    g.x(s * 0.392f), (axle - layer.tireHalf) * h,
+                                    g.x(s * tireEdge), (axle + layer.tireHalf) * h
                                 )
                                 if (layer.rimHalf > 0f) {
-                                    drawRect(
-                                        color = Color(0xFFC3C8D0),
-                                        // 띠의 폭이 층 간격보다 넓어야 옆에서 볼 때 줄무늬가 생기지 않는다.
-                                        topLeft = Offset(
-                                            minOf(g.x(s * (tireEdge - 0.026f)), g.x(s * tireEdge)),
-                                            (axle - layer.rimHalf) * h
-                                        ),
-                                        size = Size(0.026f * w, 2f * layer.rimHalf * h)
+                                    // 휠: 띠의 폭이 층 간격보다 넓어야 옆에서 볼 때 줄무늬가 생기지 않는다.
+                                    slab(
+                                        Color(0xFFC3C8D0),
+                                        g.x(s * (tireEdge - 0.026f)), (axle - layer.rimHalf) * h,
+                                        g.x(s * tireEdge), (axle + layer.rimHalf) * h
                                     )
                                 }
                             }
                         }
-                    }
-                }
-            }
-
-            // ================================================================ 윗면
-            plane(Z_BELT) {
-                drawImage(art.top, topLeft = spriteCorner)
-                // 전조등이 고장이면 렌즈를 등급 색으로 덧칠한다.
-                if (lampFault != null) {
-                    bothSides { s ->
-                        val lens = art.lampLens(s)
-                        drawPath(lens, lerp(Color(0xFFE9EDF1), lampFault, 0.85f))
-                        drawPath(lens, Color(0xFF3A4048), style = Stroke(width = 0.004f * w))
                     }
                 }
             }
