@@ -50,6 +50,7 @@ import com.cardoctor.apr.diagnosis.Environment
 import com.cardoctor.apr.diagnosis.Explainer
 import com.cardoctor.apr.diagnosis.LevelInfo
 import com.cardoctor.apr.diagnosis.Part
+import com.cardoctor.apr.env.LiveEnvironment
 import com.cardoctor.apr.vehicle.Reading
 import com.cardoctor.apr.vehicle.VehicleState
 import kotlinx.coroutines.delay
@@ -72,24 +73,44 @@ private enum class Screen(val label: String) {
 }
 
 @Composable
-fun CarDoctorApp(vehicle: VehicleState, modifier: Modifier = Modifier) {
+fun CarDoctorApp(
+    vehicle: VehicleState,
+    live: LiveEnvironment,
+    voiceStatus: String,
+    onAnnounce: (Part, Int) -> Unit,
+    onStopSpeaking: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var faults by remember { mutableStateOf(setOf<Part>()) }
     var env by remember { mutableStateOf(Environment()) }
     var selected by remember { mutableStateOf<Part?>(null) }
     var screen by remember { mutableStateOf(Screen.HOME) }
+    // 실시간 시각·날씨를 판정에 반영할지. 시나리오 버튼은 정해진 상황을 보여 줘야 하므로 이 값을 끈다.
+    var useLive by remember { mutableStateOf(true) }
+    var voiceOn by remember { mutableStateOf(true) }
 
-    // 차량에서 읽은 값과 시연 패널에서 넣은 값을 합쳐서 판정한다.
+    // 차량 값, 실시간 시각·날씨, 시연 패널 값을 합쳐서 판정한다.
     val vehicleEnv = vehicle.environment
     val allFaults = faults + vehicle.faults
     val allEnv = env.copy(
-        night = env.night || vehicleEnv.night,
-        rain = env.rain || vehicleEnv.rain
+        night = env.night || vehicleEnv.night || (useLive && live.night == true),
+        rain = env.rain || vehicleEnv.rain || (useLive && live.rain == true)
     )
     val advices = remember(allFaults, allEnv) { AdviceEngine.evaluateAll(allFaults, allEnv) }
 
     // 고른 부품이 없으면 가장 긴급한 고장을 보여 준다.
     val shownPart = selected ?: advices.firstOrNull()?.part
     val shownAdvice = advices.firstOrNull { it.part == shownPart }
+
+    // 가장 긴급한 고장이 3등급 이상으로 새로 잡히거나 바뀌면 음성으로 알린다.
+    val top = advices.firstOrNull()
+    LaunchedEffect(top?.part, top?.level, voiceOn) {
+        if (!voiceOn) {
+            onStopSpeaking()
+        } else if (top != null && top.level >= 3) {
+            onAnnounce(top.part, top.level)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -98,10 +119,16 @@ fun CarDoctorApp(vehicle: VehicleState, modifier: Modifier = Modifier) {
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Screen.entries.forEach { item ->
                 Toggle(item.label, on = screen == item) { screen = item }
             }
+            Spacer(Modifier.weight(1f))
+            Text("음성 $voiceStatus", fontSize = 18.sp, color = TextSub)
+            Toggle("음성 안내", on = voiceOn) { voiceOn = !voiceOn }
         }
 
         Row(
@@ -114,6 +141,8 @@ fun CarDoctorApp(vehicle: VehicleState, modifier: Modifier = Modifier) {
                 Screen.HOME -> {
                     StatusPanel(
                         advices = advices,
+                        env = allEnv,
+                        envSource = if (useLive) live.summary else "시연 패널에서 정한 상황",
                         shownPart = shownPart,
                         onSelect = { selected = it },
                         modifier = Modifier
@@ -147,14 +176,17 @@ fun CarDoctorApp(vehicle: VehicleState, modifier: Modifier = Modifier) {
             vehicle = vehicle,
             faults = faults,
             env = env,
+            useLive = useLive,
+            onToggleLive = { useLive = !useLive },
             onToggleFault = { part ->
                 faults = if (part in faults) faults - part else faults + part
                 selected = null
             },
             onEnvChange = { env = it },
-            onScenario = { newFaults, newEnv ->
+            onScenario = { newFaults, newEnv, live ->
                 faults = newFaults
                 env = newEnv
+                useLive = live
                 selected = null
             }
         )
@@ -165,20 +197,16 @@ fun CarDoctorApp(vehicle: VehicleState, modifier: Modifier = Modifier) {
 @Composable
 private fun StatusPanel(
     advices: List<Advice>,
+    env: Environment,
+    envSource: String,
     shownPart: Part?,
     onSelect: (Part) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val topLevel = advices.firstOrNull()?.level
 
-    // 4등급(즉시 정차)은 배너와 차량 그림의 표시를 깜빡인다.
-    val blink = rememberInfiniteTransition(label = "blink")
-    val pulse by blink.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.25f,
-        animationSpec = infiniteRepeatable(tween(550), RepeatMode.Reverse),
-        label = "pulse"
-    )
+    // 4등급(즉시 정차)일 때만 배너와 차량 그림의 표시를 깜빡인다.
+    val pulse = if (topLevel != null && topLevel >= 4) blinkPulse() else 1f
     val bannerColor = when {
         topLevel == null -> Normal
         topLevel >= 4 -> lerp(Color(0xFF7A1212), Danger, pulse)
@@ -208,6 +236,17 @@ private fun StatusPanel(
             )
         }
 
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EnvChip(if (env.night) "야간" else "주간", risky = env.night)
+            EnvChip(if (env.rain) "비·눈" else "강수 없음", risky = env.rain)
+            EnvChip(if (env.highway) "고속도로" else "일반 도로", risky = env.highway)
+            if (env.longTrip) EnvChip("남은 거리 김", risky = true)
+        }
+        Text(envSource, fontSize = 18.sp, color = TextSub)
+
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 CarDiagram(
@@ -236,6 +275,37 @@ private fun StatusPanel(
             }
         }
     }
+}
+
+/** 현재 환경 칩. 위험도를 올리는 상황이면 진하게 표시한다. */
+@Composable
+private fun EnvChip(label: String, risky: Boolean) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (risky) TextMain else Background)
+            .padding(horizontal = 18.dp, vertical = 8.dp)
+    ) {
+        Text(
+            label,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (risky) Color.White else TextMain
+        )
+    }
+}
+
+/** 1과 0.25 사이를 오가는 깜빡임 값. 호출하는 동안에만 애니메이션이 돈다. */
+@Composable
+private fun blinkPulse(): Float {
+    val blink = rememberInfiniteTransition(label = "blink")
+    val pulse by blink.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.25f,
+        animationSpec = infiniteRepeatable(tween(550), RepeatMode.Reverse),
+        label = "pulse"
+    )
+    return pulse
 }
 
 @Composable
@@ -527,9 +597,12 @@ private fun DemoPanel(
     vehicle: VehicleState,
     faults: Set<Part>,
     env: Environment,
+    useLive: Boolean,
+    onToggleLive: () -> Unit,
     onToggleFault: (Part) -> Unit,
     onEnvChange: (Environment) -> Unit,
-    onScenario: (Set<Part>, Environment) -> Unit
+    /** 고장, 환경, 실시간 시각·날씨 반영 여부를 한 번에 정한다. */
+    onScenario: (Set<Part>, Environment, Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -555,16 +628,16 @@ private fun DemoPanel(
             }
         }
         DemoRow("시나리오") {
-            OutlinedButton(onClick = { onScenario(setOf(Part.HEADLAMP), Environment()) }) {
+            OutlinedButton(onClick = { onScenario(setOf(Part.HEADLAMP), Environment(), false) }) {
                 Text("A 낮 · 전조등", fontSize = 20.sp)
             }
-            OutlinedButton(onClick = { onScenario(setOf(Part.HEADLAMP), Environment(night = true)) }) {
+            OutlinedButton(onClick = { onScenario(setOf(Part.HEADLAMP), Environment(night = true), false) }) {
                 Text("B 밤 · 전조등", fontSize = 20.sp)
             }
-            OutlinedButton(onClick = { onScenario(setOf(Part.TIRE), Environment(rain = true, highway = true)) }) {
+            OutlinedButton(onClick = { onScenario(setOf(Part.TIRE), Environment(rain = true, highway = true), false) }) {
                 Text("C 빗길 고속도로 · 타이어", fontSize = 20.sp)
             }
-            OutlinedButton(onClick = { onScenario(emptySet(), Environment()) }) {
+            OutlinedButton(onClick = { onScenario(emptySet(), Environment(), true) }) {
                 Text("초기화", fontSize = 20.sp)
             }
         }
@@ -574,6 +647,7 @@ private fun DemoPanel(
             }
         }
         DemoRow("환경") {
+            Toggle("실시간 시각·날씨", useLive, onToggleLive)
             Toggle("야간", env.night) { onEnvChange(env.copy(night = !env.night)) }
             Toggle("비", env.rain) { onEnvChange(env.copy(rain = !env.rain)) }
             Toggle("고속도로", env.highway) { onEnvChange(env.copy(highway = !env.highway)) }
