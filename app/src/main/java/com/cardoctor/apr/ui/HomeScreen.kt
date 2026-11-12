@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +37,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -121,7 +127,7 @@ fun CarDoctorApp(
                         screen = Screen.HOME
                     },
                     modifier = Modifier
-                        .weight(1.05f)
+                        .weight(1.2f)
                         .fillMaxHeight()
                 )
                 VerticalLine()
@@ -218,17 +224,8 @@ private fun CarPanel(
 
     Column(modifier = modifier.padding(start = 40.dp, top = 32.dp, end = 24.dp, bottom = 20.dp)) {
         Caption(environmentText(env))
-        Spacer(Modifier.height(10.dp))
-        if (topLevel == null) {
-            Text("이상 없음", fontSize = 38.sp, fontWeight = FontWeight.SemiBold, color = Lux.Text)
-        } else {
-            Text(
-                "${topLevel}등급 · ${LevelInfo.title(topLevel)}",
-                fontSize = 38.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = levelColor(topLevel).copy(alpha = if (topLevel >= 4) pulse.coerceAtLeast(0.35f) else 1f)
-            )
-        }
+        Spacer(Modifier.height(12.dp))
+        StatusHeadline(topLevel, pulse)
         CarDiagram(
             advices = advices,
             modifier = Modifier
@@ -237,6 +234,52 @@ private fun CarPanel(
             pulse = pulse,
             onPartTap = onSelect
         )
+    }
+}
+
+/**
+ * 차량 그림 위의 큰 상태 문구. 경고 표지(또는 정상 표지)를 앞에 붙이고,
+ * 등급은 등급 색으로, 해야 할 일은 먹색으로 적는다. 4등급은 표지와 등급이 깜빡인다.
+ */
+@Composable
+private fun StatusHeadline(topLevel: Int?, pulse: Float) {
+    val color = topLevel?.let(::levelColor) ?: Lux.Ok
+    val shown = color.copy(alpha = if (topLevel != null && topLevel >= 4) pulse.coerceAtLeast(0.3f) else 1f)
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Canvas(Modifier.size(54.dp)) {
+            val s = size.minDimension
+            if (topLevel == null) {
+                // 정상: 초록 원 안의 체크
+                drawCircle(shown, radius = s * 0.46f)
+                val check = Path().apply {
+                    moveTo(s * 0.29f, s * 0.52f)
+                    lineTo(s * 0.44f, s * 0.66f)
+                    lineTo(s * 0.72f, s * 0.36f)
+                }
+                drawPath(check, Color.White, style = Stroke(width = s * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            } else {
+                // 경고: 모서리가 둥근 삼각형 안의 느낌표
+                val triangle = Path().apply {
+                    moveTo(s * 0.50f, s * 0.10f)
+                    lineTo(s * 0.94f, s * 0.86f)
+                    lineTo(s * 0.06f, s * 0.86f)
+                    close()
+                }
+                drawPath(triangle, shown)
+                drawPath(triangle, shown, style = Stroke(width = s * 0.10f, join = StrokeJoin.Round))
+                drawLine(Color.White, Offset(s * 0.5f, s * 0.36f), Offset(s * 0.5f, s * 0.60f), s * 0.09f, StrokeCap.Round)
+                drawCircle(Color.White, radius = s * 0.05f, center = Offset(s * 0.5f, s * 0.74f))
+            }
+        }
+        Spacer(Modifier.width(18.dp))
+        if (topLevel == null) {
+            Text("이상 없음", fontSize = 54.sp, fontWeight = FontWeight.Bold, color = Lux.Text)
+        } else {
+            Text("${topLevel}등급", fontSize = 54.sp, fontWeight = FontWeight.ExtraBold, color = shown)
+            Spacer(Modifier.width(16.dp))
+            Text(LevelInfo.title(topLevel), fontSize = 54.sp, fontWeight = FontWeight.Bold, color = Lux.Text)
+        }
     }
 }
 
