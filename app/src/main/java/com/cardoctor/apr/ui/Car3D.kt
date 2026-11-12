@@ -450,7 +450,7 @@ internal fun Car3DView(
             val cosPitch = cos(pitchRad)
             val sinPitch = sin(pitchRad)
             val distance = 9f
-            val unit = minOf(size.width, size.height) / 4.2f * zoom
+            val unit = minOf(size.width, size.height) / 4.9f * zoom
             val origin = Offset(size.width / 2f, size.height * 0.54f)
             val modelCenter = Vec(0f, 0.72f, 0f)
 
