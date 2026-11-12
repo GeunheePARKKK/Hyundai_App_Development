@@ -204,6 +204,7 @@ private fun StatusPanel(
     modifier: Modifier = Modifier
 ) {
     val topLevel = advices.firstOrNull()?.level
+    var show3d by remember { mutableStateOf(true) }
 
     // 4등급(즉시 정차)일 때만 배너와 차량 그림의 표시를 깜빡인다.
     val pulse = if (topLevel != null && topLevel >= 4) blinkPulse() else 1f
@@ -248,14 +249,31 @@ private fun StatusPanel(
         Text(envSource, fontSize = 18.sp, color = TextSub)
 
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CarDiagram(
-                    advices = advices,
-                    modifier = Modifier.size(width = 250.dp, height = 540.dp),
-                    pulse = pulse,
-                    onPartTap = onSelect
-                )
-                Text("부위를 누르면 상세 정보가 열립니다", fontSize = 18.sp, color = TextSub)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Toggle("3D", on = show3d) { show3d = true }
+                    Toggle("평면", on = !show3d) { show3d = false }
+                }
+                if (show3d) {
+                    Car3DView(
+                        advices = advices,
+                        modifier = Modifier.size(width = 400.dp, height = 360.dp),
+                        pulse = pulse,
+                        onPartTap = onSelect
+                    )
+                    Text("끌어서 회전 · 부위를 누르면 상세 정보", fontSize = 18.sp, color = TextSub)
+                } else {
+                    CarDiagram(
+                        advices = advices,
+                        modifier = Modifier.size(width = 250.dp, height = 540.dp),
+                        pulse = pulse,
+                        onPartTap = onSelect
+                    )
+                    Text("부위를 누르면 상세 정보가 열립니다", fontSize = 18.sp, color = TextSub)
+                }
             }
             Column(
                 modifier = Modifier.weight(1f),
