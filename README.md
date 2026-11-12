@@ -53,6 +53,12 @@
 
 ### 2026-11-12
 
+- v1 첫 화면 추가
+  - `diagnosis/AdviceEngine.kt`: 긴급도 판정 로직 (기본 심각도 + 환경 가중치 → 1~4등급, 판정 근거 목록 반환)
+  - `diagnosis/Model.kt`: 부품 5종(전조등, 와이퍼, 타이어 공기압, 냉각수 과열, 브레이크), 주행 환경, 등급별 권고 문구
+  - `ui/HomeScreen.kt`: 차량 상태·차량 그림·고장 목록, 정비 권고와 판정 근거, 시연 패널(시나리오 A·B·C, 고장·환경 직접 선택)
+  - `AdviceEngineTest.kt`: 시나리오 A·B·C와 판정 규칙 단위 테스트 6개
+  - 아직 실제 차량 값(Vehicle SDK)은 연결하지 않았고, 시연 패널에서 넣은 값으로만 동작
 - 프로젝트를 `code/` 폴더에서 레포 최상위로 이동 (레포 폴더를 바로 열어 실행할 수 있게 함)
 - 빈 프로젝트 생성 (Empty Activity, Jetpack Compose)
 - Pleos Maven 저장소와 Vehicle SDK 2.3.2 추가
