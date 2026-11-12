@@ -7,6 +7,7 @@
     <uses-permission android:name="pleos.car.permission.CAR_SPEED" />
     <uses-permission android:name="pleos.car.permission.CAR_POWERTRAIN" />
     <uses-permission android:name="pleos.car.permission.READ_WINDSHIELD_WIPERS" />
+    <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
 
     <application
         android:allowBackup="true"

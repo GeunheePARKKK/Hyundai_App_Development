@@ -45,6 +45,8 @@ import com.cardoctor.apr.diagnosis.AdviceEngine
 import com.cardoctor.apr.diagnosis.Environment
 import com.cardoctor.apr.diagnosis.LevelInfo
 import com.cardoctor.apr.diagnosis.Part
+import com.cardoctor.apr.vehicle.Reading
+import com.cardoctor.apr.vehicle.VehicleState
 
 private val Background = Color(0xFFF3F5F8)
 private val Panel = Color.White
@@ -64,12 +66,19 @@ private fun levelColor(level: Int): Color = when (level) {
 }
 
 @Composable
-fun CarDoctorApp(modifier: Modifier = Modifier) {
+fun CarDoctorApp(vehicle: VehicleState, modifier: Modifier = Modifier) {
     var faults by remember { mutableStateOf(setOf<Part>()) }
     var env by remember { mutableStateOf(Environment()) }
     var selected by remember { mutableStateOf<Part?>(null) }
 
-    val advices = remember(faults, env) { AdviceEngine.evaluateAll(faults, env) }
+    // 차량에서 읽은 값과 시연 패널에서 넣은 값을 합쳐서 판정한다.
+    val vehicleEnv = vehicle.environment
+    val allFaults = faults + vehicle.faults
+    val allEnv = env.copy(
+        night = env.night || vehicleEnv.night,
+        rain = env.rain || vehicleEnv.rain
+    )
+    val advices = remember(allFaults, allEnv) { AdviceEngine.evaluateAll(allFaults, allEnv) }
     val current = advices.firstOrNull { it.part == selected } ?: advices.firstOrNull()
 
     Column(
@@ -101,6 +110,7 @@ fun CarDoctorApp(modifier: Modifier = Modifier) {
             )
         }
         DemoPanel(
+            vehicle = vehicle,
             faults = faults,
             env = env,
             onToggleFault = { part ->
@@ -293,6 +303,7 @@ private fun Divider() {
 /** 아래: 에뮬레이터에서 고장과 환경을 직접 넣어 보는 시연용 패널. */
 @Composable
 private fun DemoPanel(
+    vehicle: VehicleState,
     faults: Set<Part>,
     env: Environment,
     onToggleFault: (Part) -> Unit,
@@ -307,6 +318,20 @@ private fun DemoPanel(
             .padding(horizontal = 24.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        DemoRow("차량 값") {
+            if (!vehicle.connected) {
+                Text(
+                    "차량 서비스에 연결되지 않았습니다" + (vehicle.connectionError?.let { " ($it)" } ?: ""),
+                    fontSize = 20.sp,
+                    color = TextMain
+                )
+            } else {
+                VehicleValue("브레이크액", vehicle.brakeFluid)
+                VehicleValue("전조등", vehicle.lowBeam)
+                VehicleValue("와이퍼", vehicle.wiper)
+                VehicleValue("경고등", vehicle.telltales)
+            }
+        }
         DemoRow("시나리오") {
             OutlinedButton(onClick = { onScenario(setOf(Part.HEADLAMP), Environment()) }) {
                 Text("A 낮 · 전조등", fontSize = 20.sp)
@@ -343,6 +368,19 @@ private fun DemoRow(title: String, content: @Composable () -> Unit) {
     ) {
         Text(title, fontSize = 20.sp, color = TextSub, modifier = Modifier.width(96.dp))
         content()
+    }
+}
+
+@Composable
+private fun VehicleValue(label: String, reading: Reading) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Background)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Text("$label ", fontSize = 20.sp, color = TextSub)
+        Text(reading.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
     }
 }
 
