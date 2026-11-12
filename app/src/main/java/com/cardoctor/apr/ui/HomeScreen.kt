@@ -223,8 +223,8 @@ private fun CarPanel(
     val pulse = if (topLevel != null && topLevel >= 4) blinkPulse() else 1f
 
     Column(modifier = modifier.padding(start = 40.dp, top = 32.dp, end = 24.dp, bottom = 20.dp)) {
-        Caption(environmentText(env))
-        Spacer(Modifier.height(12.dp))
+        Text(environmentText(env), fontSize = 25.sp, fontWeight = FontWeight.Medium, color = Lux.TextDim)
+        Spacer(Modifier.height(14.dp))
         StatusHeadline(topLevel, pulse)
         CarDiagram(
             advices = advices,
