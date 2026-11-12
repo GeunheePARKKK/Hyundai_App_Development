@@ -30,6 +30,11 @@ enum class Part(
         label = "브레이크",
         baseSeverity = 3,
         explanation = "제동 장치에 이상이 감지됐습니다. 차를 제때 세우지 못할 수 있어 안전에 직접 영향을 줍니다."
+    ),
+    POWER(
+        label = "구동 출력 제한",
+        baseSeverity = 3,
+        explanation = "차량이 구동 출력을 제한하고 있습니다. 가속이 평소보다 느려지고, 원인에 따라 주행 중 멈출 수 있습니다."
     )
 }
 

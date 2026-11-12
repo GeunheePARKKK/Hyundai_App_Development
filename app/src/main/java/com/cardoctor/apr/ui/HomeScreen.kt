@@ -326,6 +326,7 @@ private fun DemoPanel(
                     color = TextMain
                 )
             } else {
+                VehicleValue("출력 제한 경고", vehicle.powerDown)
                 VehicleValue("브레이크액", vehicle.brakeFluid)
                 VehicleValue("전조등", vehicle.lowBeam)
                 VehicleValue("와이퍼", vehicle.wiper)
@@ -422,8 +423,8 @@ private fun CarDiagram(advices: List<Advice>, modifier: Modifier = Modifier) {
         rounded(lampColor, w * 0.16f, h * 0.025f, w * 0.20f, h * 0.045f, 12f)
         rounded(lampColor, w * 0.64f, h * 0.025f, w * 0.20f, h * 0.045f, 12f)
 
-        // 냉각수(보닛 안 엔진 위치)
-        drawCircle(color(Part.COOLANT, CarPart), radius = w * 0.09f, center = Offset(w * 0.5f, h * 0.16f))
+        // 냉각수·구동 장치(보닛 안)
+        drawCircle(colors[Part.POWER] ?: color(Part.COOLANT, CarPart), radius = w * 0.09f, center = Offset(w * 0.5f, h * 0.16f))
 
         // 앞 유리, 지붕, 뒤 유리
         rounded(CarGlass, w * 0.18f, h * 0.27f, w * 0.64f, h * 0.14f, 20f)

@@ -21,7 +21,12 @@ import com.cardoctor.apr.diagnosis.Part
 /** 차량에서 읽은 값 하나. value가 null이고 error가 있으면 읽기에 실패한 것. */
 data class Reading(val value: String? = null, val error: String? = null) {
     val text: String
-        get() = value ?: if (error != null) "읽기 실패" else "확인 중"
+        get() = value ?: when {
+            error == null -> "확인 중"
+            "Permission" in error -> "권한 없음"
+            "not supported" in error -> "미지원 차량"
+            else -> "읽기 실패"
+        }
 }
 
 /** Vehicle SDK로 읽은 현재 차량 상태. */
@@ -29,6 +34,7 @@ data class VehicleState(
     val connected: Boolean = false,
     val connectionError: String? = null,
     val brakeFluid: Reading = Reading(),
+    val powerDown: Reading = Reading(),
     val lowBeam: Reading = Reading(),
     val wiper: Reading = Reading(),
     val telltales: Reading = Reading(),
@@ -39,6 +45,7 @@ data class VehicleState(
     val faults: Set<Part>
         get() = buildSet {
             if (brakeFluid.value in BRAKE_FLUID_FAULTS) add(Part.BRAKE)
+            if (powerDown.value == POWER_DOWN_ON) add(Part.POWER)
             addAll(telltaleFaults)
         }
 
@@ -49,8 +56,10 @@ data class VehicleState(
             rain = wiper.value == WiperState.ON.name
         )
 
-    private companion object {
-        val BRAKE_FLUID_FAULTS = setOf(
+    companion object {
+        const val POWER_DOWN_ON = "켜짐"
+        const val POWER_DOWN_OFF = "꺼짐"
+        private val BRAKE_FLUID_FAULTS = setOf(
             OilLevelState.LOW.name,
             OilLevelState.CRITICALLY_LOW.name,
             OilLevelState.ERROR.name
@@ -61,7 +70,8 @@ data class VehicleState(
 /**
  * Pleos Vehicle SDK에서 진단에 쓰는 값을 읽는다.
  *
- * 일반 앱 권한으로 읽을 수 있는 값: 브레이크액 수위, 전조등(하향등) 상태, 와이퍼 상태.
+ * 일반 앱 권한으로 읽을 수 있는 값: 출력 제한 경고, 브레이크액 수위, 전조등(하향등) 상태, 와이퍼 상태.
+ * 브레이크액 수위는 차종에 따라 지원하지 않는다(Pleos Connect 에뮬레이터 v2.1은 미지원).
  * 경고등(Telltales)과 실제 타이어 공기압은 SDK에서 시스템 앱 전용 권한
  * (PRIVATE_CAR_SAFETY, signature|privileged)으로 막혀 있어, 시도는 하되 실패하면 그대로 표시한다.
  */
@@ -95,6 +105,12 @@ class VehicleReader(context: Context) {
 
         read("brakeFluid", { copy(brakeFluid = it) }) { done, failed ->
             vehicle.getSafety().getBrakeFluidLevelState({ done(it?.name) }, failed)
+        }
+        read("powerDown", { copy(powerDown = it) }) { done, failed ->
+            vehicle.getSafety().hasPowerDownWarningIndicator(
+                { done(it?.let { on -> if (on) VehicleState.POWER_DOWN_ON else VehicleState.POWER_DOWN_OFF }) },
+                failed
+            )
         }
         read("lowBeam", { copy(lowBeam = it) }) { done, failed ->
             vehicle.getLight().getCurrentLowBeamLightState({ done(it?.name) }, failed)
